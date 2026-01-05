@@ -1,0 +1,18 @@
+.auth-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 16px;
+    /* Strong Gradient Background for Auth Pages */
+    background: linear-gradient(135deg, #4a148c 0%, #7b1fa2 100%);
+}
+
+.auth-paper {
+    backdrop-filter: blur(10px);
+    background-color: rgba(255, 255, 255, 0.9) !important; /* Semi-transparent white */
+    border-radius: 20px !important;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+}
