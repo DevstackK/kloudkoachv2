@@ -36,7 +36,7 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
             # 1. Navigate to the git repository folder
-            cd /root/InterviewHelper-AI-Foundry
+            cd /root/KloudKoach_UI
 
             # 2. Fetch all changes and force checkout the correct branch
             git fetch --all
