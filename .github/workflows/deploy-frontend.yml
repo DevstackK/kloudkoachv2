@@ -13,18 +13,15 @@ jobs:
       - name: Set Environment Variables
         id: vars
         run: |
-          # Check which branch triggered the workflow
           if [[ $GITHUB_REF == 'refs/heads/main' ]]; then
             echo "Environment: Production"
             echo "IMAGE_TAG=latest" >> $GITHUB_ENV
             echo "SERVICE_NAME=interview-app" >> $GITHUB_ENV
-            # Production Backend URL
             echo "API_URL=https://ksatif-001-site8.atempurl.com/api" >> $GITHUB_ENV
           else
             echo "Environment: Pre-Production"
             echo "IMAGE_TAG=preprod" >> $GITHUB_ENV
             echo "SERVICE_NAME=interview-app-preprod" >> $GITHUB_ENV
-            # Pre-Prod Backend URL
             echo "API_URL=https://griffin26-001-site6.atempurl.com/api" >> $GITHUB_ENV
           fi
 
@@ -33,28 +30,21 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          password: ${{ secrets.VPS_PASSWORD }}
+          # CHANGED: Use key instead of password
+          key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            # 1. Navigate to the git repository folder
             cd /root/KloudKoach_UI
-
-            # 2. Fetch all changes and force checkout the correct branch
+            
             git fetch --all
             git checkout ${{ github.ref_name }}
             git pull origin ${{ github.ref_name }}
 
-            # 3. Build the Docker Image
-            # We inject the specific API URL for this environment here
             docker build \
               --build-arg REACT_APP_API_URL="${{ env.API_URL }}" \
               -t interview-helper:${{ env.IMAGE_TAG }} .
 
-            # 4. Move to Parent Directory (where docker-compose.yml lives)
             cd .. 
 
-            # 5. Restart ONLY the specific service for this branch
-            # This ensures pushing to pre-prod does not restart production
             docker compose up -d --no-deps ${{ env.SERVICE_NAME }}
 
-            # 6. Cleanup unused images to save disk space
             docker image prune -f
