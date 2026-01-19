@@ -43,7 +43,7 @@ const InterviewPrepTranscription = ({ chatHistory, question, answers, handleClea
     >
       <Box className="transcription-header" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, pb: 1 }}>
         <Typography variant="h6">Interview Transcript</Typography>
-        <Button
+        {/* <Button
           variant="outlined"
           color="error"
           startIcon={<DeleteIcon />}
@@ -51,16 +51,16 @@ const InterviewPrepTranscription = ({ chatHistory, question, answers, handleClea
           disabled={chatHistory.length === 0}
         >
           Clear Chat
-        </Button>
+        </Button> */}
       </Box>
 
       <Divider />
 
       <List
         className="transcription-list"
-        sx={{ 
-          flexGrow: 1, 
-          overflowY: 'auto', 
+        sx={{
+          flexGrow: 1,
+          overflowY: 'auto',
           p: 2,
           position: 'relative'
         }}
@@ -68,9 +68,9 @@ const InterviewPrepTranscription = ({ chatHistory, question, answers, handleClea
         {/* Welcome Message - Only shows when no conversation has started */}
         {showWelcome && chatHistory.length === 0 && !question && !answers && (
           <ListItem>
-            <Box sx={{ 
-              width: '100%', 
-              display: 'flex', 
+            <Box sx={{
+              width: '100%',
+              display: 'flex',
               justifyContent: 'center',
               my: 2
             }}>
@@ -130,9 +130,9 @@ const InterviewPrepTranscription = ({ chatHistory, question, answers, handleClea
                   sx={{
                     p: 2,
                     maxWidth: '80%',
-                    background: 'linear-gradient(135deg, #c2185b 0%, #ff4081 100%)', 
+                    background: 'linear-gradient(135deg, #c2185b 0%, #ff4081 100%)',
                     color: 'white',
-                    borderRadius: '20px 20px 0 20px', 
+                    borderRadius: '20px 20px 0 20px',
                     boxShadow: '0 2px 8px rgba(194, 24, 91, 0.2)'
                   }}
                 >
@@ -141,7 +141,7 @@ const InterviewPrepTranscription = ({ chatHistory, question, answers, handleClea
                 </Paper>
               </Box>
             </ListItem>
-            
+
             {/* AI Message */}
             <ListItem>
               <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-start' }}>
@@ -176,9 +176,9 @@ const InterviewPrepTranscription = ({ chatHistory, question, answers, handleClea
                 sx={{
                   p: 2,
                   maxWidth: '80%',
-                  background: 'linear-gradient(135deg, #c2185b 0%, #ff4081 100%)', 
+                  background: 'linear-gradient(135deg, #c2185b 0%, #ff4081 100%)',
                   color: 'white',
-                  borderRadius: '20px 20px 0 20px', 
+                  borderRadius: '20px 20px 0 20px',
                   boxShadow: '0 2px 8px rgba(194, 24, 91, 0.2)',
                   opacity: 0.8 // Visual cue for in-progress
                 }}
