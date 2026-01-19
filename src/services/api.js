@@ -37,6 +37,12 @@ export const subscriptionService = {
   createCheckoutSession: (planId) => api.post('/Subscription/create-checkout-session', { planId }),
   getUsageSummary: () => api.get('/Subscription/usage'),
   stopSession: (sessionId, tokensUsed = 0, transcript = []) => api.post(`/Subscription/session/${sessionId}/stop`, { tokensUsed, transcript }),
+  recordUsage: (featureCode, usedAmount, referenceId = "") =>
+    api.post('/Subscription/usage/record', {
+      featureCode,
+      usedAmount,
+      referenceId
+    }),
 };
 
 export const resumeService = {
@@ -51,7 +57,7 @@ export const resumeService = {
 export const analyticsService = {
   getSessionAnalytics: (sessionId) => api.get(`/Analytics/session/${sessionId}`),
   // NEW: Fetch history
-  getSessionHistory: () => api.get('/Analytics/history'), 
+  getSessionHistory: () => api.get('/Analytics/history'),
 };
 
 export const securityService = {

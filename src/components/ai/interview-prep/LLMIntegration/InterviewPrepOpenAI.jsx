@@ -1,19 +1,18 @@
 import React, { useState, useRef, forwardRef, useImperativeHandle, useEffect } from "react";
-import { Box, Button, CircularProgress, useTheme, Typography, Paper } from "@mui/material";
+import { Box, Button, CircularProgress, useTheme, Typography, Paper, Fade } from "@mui/material";
 import "./InterviewPrepOpenAI.css";
 import { useSession } from '../../../../context/SessionContext';
 import { useInterviewSetup } from '../../../../context/InterviewSetupContext';
 import { useAuth } from '../../../../context/AuthContext';
-import api, { subscriptionService } from "../../../../services/api"; // Import API
-import SessionTimer from "../../../common/SessionTimer"; // Import Timer
-
-const OPENAI_KEY=process.env.REACT_APP_OPENAI_API_KEY;
+import api, { subscriptionService } from "../../../../services/api";
+import SessionTimer from "../../../common/SessionTimer";
 
 const RTC_CONFIGURATION = {
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-    ],
-  };
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+};
+
+// Reconnect every 15 minutes to stay safe within the 30m limit
+const RECONNECT_INTERVAL_MS = 15 * 60 * 1000;
 
 const InterviewPrepOpenAI = forwardRef(({
   answers,
@@ -26,42 +25,331 @@ const InterviewPrepOpenAI = forwardRef(({
   onConnectionStatusChange
 }, ref) => {
 
-  const { user, refreshUsage } = useAuth();
-  const [listeningOnMic, setListening] = useState(false);
-  const [connectStatus, setConnectStatus] = useState("notConnect");
-  const [peerConnection, setPeerConnection] = useState(null);
-  const [dataChannel, setDataChannel] = useState(null);
-  const [outputText, setOutputText] = useState("");
-  const [inputText, setInputText] = useState("");
-
-  const [dbSessionId, setDbSessionId] = useState(null);
-  const [startTime, setStartTime] = useState(null);
-
+  const { refreshUsage } = useAuth();
   const theme = useTheme();
-  const localStreamRef = useRef(null);
-  const questionRef = useRef("");
-  const answersRef = useRef("");
-
-  const [isSharing, setIsSharing] = useState(false);
-  const [stream, setStream] = useState(null);
-
-  // Refs for audio visualization
-  const canvasRef = useRef(null);
-  const audioContextRef = useRef(null);
-  const animationFrameIdRef = useRef(null);
   const { setActiveStopSession } = useSession();
   const { clearForm } = useInterviewSetup();
 
-  // New state for welcome message
+  // --- STATE ---
+  const [connectStatus, setConnectStatus] = useState("notConnect");
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [dbSessionId, setDbSessionId] = useState(null);
+  const [startTime, setStartTime] = useState(null);
   const [showWelcome, setShowWelcome] = useState(true);
 
+  // Refs for WebRTC Connection Objects
+  const pcRef = useRef(null);
+  const dcRef = useRef(null);
+
+  // Persistent Microphone Stream Ref
+  const mediaStreamRef = useRef(null);
+
+  // Data tracking refs for event handling
+  const questionRef = useRef("");
+  const answersRef = useRef("");
+  const canvasRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const animationFrameIdRef = useRef(null);
+
+  // --- 1. SYNC STATUS TO PARENT ---
   useEffect(() => {
-    if (onConnectionStatusChange) {
-      onConnectionStatusChange(connectStatus);
+    if (onConnectionStatusChange) onConnectionStatusChange(connectStatus);
+  }, [connectStatus, onConnectionStatusChange]);
+
+  // --- 2. USAGE HEARTBEAT (Every 1 min) ---
+  useEffect(() => {
+    let interval = null;
+    if (connectStatus === "connected" && dbSessionId) {
+      interval = setInterval(() => {
+        // console.log("💓 Sending session heartbeat (1 min usage)");
+        subscriptionService.recordUsage("INTERVIEW_PREP", 1, dbSessionId.toString())
+          .catch(err => console.error("Heartbeat failed", err));
+      }, 60000);
     }
+    return () => clearInterval(interval);
+  }, [connectStatus, dbSessionId]);
+
+  // --- 3. PROACTIVE RECONNECT TIMER (Every 15 mins) ---
+  useEffect(() => {
+    let timer = null;
+    if (connectStatus === "connected") {
+      timer = setInterval(() => {
+        // console.log("♻️ Triggering proactive silent context-aware reconnect...");
+        performSilentReconnect();
+      }, RECONNECT_INTERVAL_MS);
+    }
+    return () => clearInterval(timer);
+  }, [connectStatus]);
+
+  // --- 4. UI HELPERS ---
+  const refreshStatusButtonUI = () => {
+    if (connectStatus === "notConnect") return "Start Session";
+    if (connectStatus === "connecting") return "Connecting...";
+    if (connectStatus === "connected") return "Stop Session";
+    return "Start Session";
+  };
+
+  const handleLimitReached = () => {
+    alert("You have reached your session time limit for this plan.");
+    disconnectWebSocket();
+  };
+
+  // --- 5. CORE CONNECTION LOGIC ---
+
+  const injectHistoryContext = (channel) => {
+    if (!chatHistory || chatHistory.length === 0) return;
+
+    // Convert existing chat history into a string for the AI's instructions
+    const historyText = chatHistory.map(h =>
+      `Interviewer: ${h.question}\nCandidate: ${h.answer}`
+    ).join("\n\n");
+
+    const updateEvent = {
+      type: "session.update",
+      session: {
+        instructions: `CONTINUATION CONTEXT: You are in the middle of a mock interview. 
+            The conversation history so far is as follows:\n${historyText}\n
+            Please continue exactly from where we left off. Do not repeat previous questions. 
+            Acknowledge that we are continuing if the user has just finished an answer.`
+      }
+    };
+
+    if (channel && channel.readyState === "open") {
+      channel.send(JSON.stringify(updateEvent));
+      // console.log("🧠 Context injected into new connection");
+    }
+  };
+
+  const connectToAI = async (isSilentReconnect = false) => {
+    if (isSilentReconnect) setIsReconnecting(true);
+
+    try {
+      const response = await api.post('/Realtime/session', {
+        jobDescription: formData.jobDescription,
+        jobTitle: formData.jobRole,
+        interviewRound: formData.interviewRound,
+        interviewType: "interview-prep"
+      });
+      const result = response.data;
+
+      if (result.data.sessionId) {
+        // console.log(`📡 ${isSilentReconnect ? 'Reconnected' : 'Started'} with Session ID:`, result.data.sessionId);
+
+        // CRITICAL FIX: Always update the Session ID, even on reconnects
+        setDbSessionId(result.data.sessionId);
+
+        if (!isSilentReconnect) {
+          setStartTime(new Date());
+        }
+      }
+
+      const newPC = new RTCPeerConnection(RTC_CONFIGURATION);
+
+      // Use existing stream from ref
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => {
+          newPC.addTrack(track, mediaStreamRef.current);
+        });
+      }
+
+      newPC.ontrack = (e) => {
+        const audioEl = new Audio();
+        audioEl.srcObject = e.streams[0];
+        audioEl.play().catch(err => console.error("Audio play error", err));
+      };
+
+      const newDC = newPC.createDataChannel("oai-events", { ordered: true });
+      newDC.onmessage = handleOpenAIEvent;
+
+      newDC.onopen = () => {
+        if (isSilentReconnect) {
+          injectHistoryContext(newDC);
+        }
+      };
+
+      const offer = await newPC.createOffer({ offerToReceiveAudio: true });
+      await newPC.setLocalDescription(offer);
+
+      const baseUrl = "https://ks-ai-gpt-realtime-resource.openai.azure.com/openai/v1/realtime?model=realtime";
+      const sdpResponse = await fetch(baseUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${result.data.clientSecret}`,
+          "Content-Type": "application/sdp"
+        },
+        body: offer.sdp
+      });
+
+      if (!sdpResponse.ok) throw new Error("SDP Exchange failed");
+
+      const answerSdp = await sdpResponse.text();
+      await newPC.setRemoteDescription({ type: "answer", sdp: answerSdp });
+
+      if (isSilentReconnect) {
+        // Silent Swap
+        if (pcRef.current) pcRef.current.close();
+        pcRef.current = newPC;
+        dcRef.current = newDC;
+        setIsReconnecting(false);
+        // console.log("✅ Silent Handover Complete.");
+      } else {
+        // Initial Connect
+        pcRef.current = newPC;
+        dcRef.current = newDC;
+        setConnectStatus("connected");
+        setActiveStopSession(() => disconnectWebSocket);
+        clearForm();
+      }
+
+    } catch (err) {
+      console.error("Connection failed:", err);
+      if (!isSilentReconnect) setConnectStatus("notConnect");
+      setIsReconnecting(false);
+    }
+  };
+
+  const startSession = async () => {
+    try {
+      setConnectStatus("connecting");
+      setShowWelcome(false);
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      visualize(stream);
+      await connectToAI(false);
+
+    } catch (error) {
+      console.error("Media Error:", error);
+      setConnectStatus("notConnect");
+      setShowWelcome(true);
+    }
+  };
+
+  const performSilentReconnect = () => {
+    if (mediaStreamRef.current && mediaStreamRef.current.active) {
+      connectToAI(true);
+    } else {
+      console.warn("Media stream lost, cannot reconnect.");
+      disconnectWebSocket();
+    }
+  };
+
+  const disconnectWebSocket = async () => {
+    if (pcRef.current) pcRef.current.close();
+    if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
+
+    if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
+    if (audioContextRef.current) audioContextRef.current.close();
+
+    if (dbSessionId) {
+      try {
+        const transcriptPayload = chatHistory.map(e => ({ question: e.answer, answer: e.question }));
+        subscriptionService.stopSession(dbSessionId, 0, transcriptPayload);
+        if (refreshUsage) refreshUsage();
+      } catch (e) { console.error(e); }
+    }
+
+    setConnectStatus("notConnect");
+    setDbSessionId(null);
+    setAnswers("");
+    setQuestion("");
+    setChatHistory([]);
+    setActiveStopSession(null);
+    setShowWelcome(true);
+    setIsReconnecting(false);
+  };
+
+  // --- 6. EVENT HANDLERS ---
+  const handleDone = () => {
+    const q = questionRef.current;
+    const a = answersRef.current;
+    if (q || a) {
+      setChatHistory(prev => [...prev, {
+        question: q,
+        answer: a,
+        timestamp: new Date().toISOString()
+      }]);
+    }
+    setAnswers('');
+    setQuestion('');
+    questionRef.current = "";
+    answersRef.current = "";
+  };
+
+  const handleOpenAIEvent = (event) => {
+    const message = JSON.parse(event.data);
+    const { type } = message;
+    // console.log("Message type: ", message);
+    if (type === 'error' && message.error?.code === 'session_expired') {
+      performSilentReconnect();
+      return;
+    }
+
+    switch (type) {
+      case "response.output_audio_transcript.delta":
+        setAnswers(prev => {
+          const updated = prev + (message.delta || "");
+          answersRef.current = updated;
+          return updated;
+        });
+        break;
+      case "response.output_item.done":
+        handleDone();
+        break;
+      case "conversation.item.input_audio_transcription.completed":
+        const transcript = message.transcript || "";
+        setQuestion(transcript);
+        questionRef.current = transcript;
+        break;
+      default: break;
+    }
+  };
+
+  // --- 7. VISUALIZER ---
+  const visualize = (stream) => {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    audioContextRef.current = audioContext;
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+    const draw = () => {
+      if (!canvasRef.current) return;
+      animationFrameIdRef.current = requestAnimationFrame(draw);
+      analyser.getByteFrequencyData(dataArray);
+
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const radius = 30;
+
+      for (let i = 0; i < dataArray.length * 0.7; i++) {
+        const barHeight = dataArray[i] / 2.5;
+        const angle = (i / (dataArray.length * 0.7)) * 2 * Math.PI;
+        ctx.strokeStyle = theme.palette.primary.main;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle));
+        ctx.lineTo(centerX + (radius + barHeight) * Math.cos(angle), centerY + (radius + barHeight) * Math.sin(angle));
+        ctx.stroke();
+      }
+    };
+    draw();
+  };
+
+  useImperativeHandle(ref, () => ({ stopSession: disconnectWebSocket }));
+
+  // Resize canvas effect
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const resizeCanvas = () => {
       const parent = canvas.parentElement;
       if (parent) {
@@ -69,538 +357,60 @@ const InterviewPrepOpenAI = forwardRef(({
         canvas.height = parent.clientHeight;
       }
     };
-
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
-
-    return () => {
-      window.removeEventListener("resize", resizeCanvas);
-
-      if (peerConnection) {
-        console.log("Component unmounting, stopping session...");
-        disconnectWebSocket();
-      }
-    };
-  }, [peerConnection, onConnectionStatusChange]);
-
-  // Hide welcome message when session starts
-  useEffect(() => {
-    if (connectStatus === "connecting" || connectStatus === "connected") {
-      setShowWelcome(false);
-    }
-  }, [connectStatus]);
-
-  // Show welcome message when component is first created
-  useEffect(() => {
-    setShowWelcome(true);
-  }, []);
-
-  const refreshStatusButtonUI = () => {
-    if (connectStatus === "notConnect") return "Start Session";
-    if (connectStatus === "connecting") return "Connecting...";
-    if (connectStatus === "connected") return "Stop";
-  };
-
-  const refreshListeningStatus = () => {
-    return connectStatus === "connected";
-  }
-
-  const stopSharing = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-    setIsSharing(false);
-  };
-
-  // Get Secret Key from OpenAI API - UPDATED to use backend session endpoint
-  const getOpenAIWebSocketSecretKey = async () => {
-    const response = await api.post('/Realtime/session', {
-        jobDescription: formData.jobDescription,
-        jobTitle: formData.jobRole,
-        interviewRound: formData.interviewRound,
-        interviewType: "interview-prep",
-        company: "",
-        industry: "", 
-        experienceLevel: ""
-    });
-
-    // Axios returns data in response.data. The wrapper is { success: true, data: {...} }
-    const result = response.data;
-    
-    if (!result.success) {
-       throw new Error(result.error || "Failed to create session");
-    }
-
-    if (result.data.sessionId) {
-        setDbSessionId(result.data.sessionId);
-        setStartTime(new Date()); // Start timer locally
-    }
-    if (result.data.sessionId) {
-        console.log("Session ID received:", result.data.sessionId); // Debug Log
-        setDbSessionId(result.data.sessionId);
-        setStartTime(new Date()); // Start timer locally
-    } else {
-        console.warn("⚠️ No Session ID returned from backend!", result);
-    }
-    return result;
-  };
-
-  // Function to draw the audio visualizer
-  const visualize = (stream) => {
-    if (!stream || !canvasRef.current) return;
-
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    audioContextRef.current = audioContext;
-
-    const source = audioContext.createMediaStreamSource(stream);
-    const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 256;
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    source.connect(analyser);
-
-    const canvas = canvasRef.current;
-    const canvasCtx = canvas.getContext("2d");
-
-    const draw = () => {
-      animationFrameIdRef.current = requestAnimationFrame(draw);
-
-      analyser.getByteFrequencyData(dataArray);
-
-      canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-      const radius = 30;
-      const bars = bufferLength * 0.7;
-
-      for (let i = 0; i < bars; i++) {
-        const barHeight = dataArray[i] / 2.5;
-        const angle = (i / bars) * 2 * Math.PI;
-
-        const startX = centerX + radius * Math.cos(angle);
-        const startY = centerY + radius * Math.sin(angle);
-
-        const endX = centerX + (radius + barHeight) * Math.cos(angle);
-        const endY = centerY + (radius + barHeight) * Math.sin(angle);
-
-        canvasCtx.strokeStyle = theme.palette.primary.main;
-        canvasCtx.lineWidth = 2;
-        canvasCtx.beginPath();
-        canvasCtx.moveTo(startX, startY);
-        canvasCtx.lineTo(endX, endY);
-        canvasCtx.stroke();
-      }
-    };
-
-    draw();
-  };
-
-  // Connect to WebRTC and OpenAI
-  const connectWebSocket = async () => {
-    if (connectStatus !== "notConnect") {
-      return;
-    }
-    setConnectStatus("connecting");
-    setListening(refreshListeningStatus());
-
-    try {
-      // 1. Get WebSocket key from backend
-      const secretDict = await getOpenAIWebSocketSecretKey();
-
-      // 2. Init RTCPeerConnection
-      const pc = new RTCPeerConnection(RTC_CONFIGURATION);
-      console.log("1. Init RTCPeerConnection");
-
-      // 3. Setup local audio
-      console.log("2. Setup local audio");
-      const localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      setStream(localStream);
-      setIsSharing(true);
-      if (!localStream || localStream.getTracks().length === 0) {
-        console.error("No audio tracks found in the local stream");
-        setConnectStatus("notConnect");
-        setListening(refreshListeningStatus());
-        return;
-      }
-
-      localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
-      localStreamRef.current = localStream;
-
-      // Start visualization
-      visualize(localStream);
-
-      pc.ontrack = (event) => {
-        if (event.streams[0]) {
-          const audioElement = new Audio();
-          audioElement.srcObject = event.streams[0];
-          audioElement.play().catch((error) => console.error('Audio play error:', error));
-        }
-      };
-
-      // 4. Create data channel
-      console.log("3. Create data channel");
-      const channel = pc.createDataChannel("oai-events", { ordered: true });
-      channel.onopen = () => {
-        console.log("Data channel is open");
-        setDataChannel(channel);
-      };
-
-      channel.onmessage = (event) => {
-        handleOpenAIEvent(event);
-      };
-
-      setPeerConnection(pc);
-      setDataChannel(channel);
-
-      // 5. Create SDP Offer
-      console.log("4. Create SDP Offer");
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: false,
-      });
-
-      if (!offer.sdp || !offer.sdp.includes("m=audio")) {
-        setConnectStatus("notConnect");
-        setListening(refreshListeningStatus());
-        return;
-      }
-
-      // 6. Set Local Description
-      console.log("5. Set Local Description");
-      await pc.setLocalDescription(new RTCSessionDescription(offer));
-
-      // 7. Send SDP to OpenAI
-      console.log("6. Send SDP to OpenAI");
-      const clientSecret = secretDict?.data?.clientSecret;
-      if (clientSecret) {
-        await sendSDPToServer(pc, offer, clientSecret);
-        setConnectStatus("connected");
-        setListening(refreshListeningStatus());
-        setActiveStopSession(() => disconnectWebSocket);
-        clearForm();
-      } else {
-        console.error("Client secret is missing");
-        setConnectStatus("notConnect");
-        setListening(refreshListeningStatus());
-      }
-    } catch (error) {
-      console.error("Connection error:", error);
-      setConnectStatus("notConnect");
-      setListening(refreshListeningStatus());
-    }
-  };
-
-  // Send SDP to service
-  const sendSDPToServer = async (pc, offer, clientSecret) => {
-    const url = "https://ks-ai-gpt-realtime-resource.openai.azure.com/openai/v1/realtime?model=realtime";
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${clientSecret}`,
-        "Content-Type": "application/sdp",
-      },
-      body: offer.sdp,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to send SDP to server: ${response.statusText}`);
-    }
-
-    const remoteSDP = await response.text();
-    await pc.setRemoteDescription(new RTCSessionDescription({ type: "answer", sdp: remoteSDP }));
-  };
-
-  const handleDone = () => {
-    const questionSnapshot = questionRef.current;
-    const answerSnapshot = answersRef.current;
-    setChatHistory(prev => [
-      ...prev,
-      {
-        question: questionSnapshot,
-        answer: answerSnapshot,
-        timestamp: new Date().toISOString()
-      }
-    ]);
-    setInputText('');
-    setOutputText('');
-    setAnswers('');
-    setQuestion('');
-  };  
-
-  // Handle OpenAI Event
-  const handleOpenAIEvent = async (event) => {
-    const message = JSON.parse(event.data);
-    const { type } = message;
-    console.log(message);
-    switch (type) {
-      case "response.output_audio_transcript.delta":
-        try {
-            setOutputText(prev => {
-            const newText = prev + (message.delta || "");
-            setAnswers(newText);
-            answersRef.current = newText;
-            return newText;
-          });
-        } catch (error) {
-          console.error("Error handling transcript delta:", error);
-          setAnswers("Error processing transcript");
-        }
-        break;
-        case "response.output_item.done":
-          handleDone();
-          break;
-      case "conversation.item.input_audio_transcription.completed":
-        try {
-            setInputText(prev => {
-            const newText = prev + (message.transcript || "");
-            setQuestion(newText);
-            questionRef.current = newText;
-            return newText;
-          });
-        } catch (error) {
-          console.error("Error handling transcript delta:", error);
-          setQuestion("Error processing transcript");
-        }
-        break;
-      case "session.updated":
-        console.log("Session updated:", message.session);
-        break;
-      case "session.created":
-        console.log("Session created");
-        break;
-      default:
-        break;
-    }
-  };
-
-  // Disconnect WebRTC
-  const disconnectWebSocket = async () => {
-    if (peerConnection) {
-      peerConnection.close();
-      setPeerConnection(null);
-      console.log("Disconnecting peer connection");
-    }
-    if (dataChannel) {
-      dataChannel.close();
-      setDataChannel(null);
-      console.log("Disconnecting data channel");
-    }
-    
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
-      console.log("Disconnecting local audio stream");
-    }
-    
-    if (animationFrameIdRef.current) {
-      cancelAnimationFrame(animationFrameIdRef.current);
-      console.log("Disconnecting audio visualization");
-    }
-    
-    if (audioContextRef.current) {
-      try {
-        if (audioContextRef.current.state !== 'closed' && audioContextRef.current.state !== 'closing') {
-          audioContextRef.current.close();
-          console.log("AudioContext closed successfully");
-        } else {
-          console.log("AudioContext already closed or closing");
-        }
-      } catch (error) {
-        console.warn("Error closing AudioContext:", error);
-      }
-      audioContextRef.current = null;
-      // if (dbSessionId) {
-      //   try {
-      //       await subscriptionService.stopSession(dbSessionId, 0);
-      //       await refreshUsage();
-      //   } catch(e) { console.error(e); }
-      // }
-      //   setDbSessionId(null);
-      if (dbSessionId) {
-        try {
-            console.log(`Stopping session ${dbSessionId}...`);
-            
-            // Format chat history for backend
-            // chatHistory is likely [{question: "...", answer: "...", timestamp: "..."}]
-            const transcriptPayload = chatHistory.map(entry => ({
-                question: entry.answer,
-                answer: entry.question
-            }));
-
-            // Include transcript in the API call
-            await subscriptionService.stopSession(dbSessionId, 0, transcriptPayload);
-            
-            await refreshUsage(); 
-        } catch (error) {
-            console.error("Failed to stop session on backend", error);
-        }
-        setDbSessionId(null);
-    }
-    }
-    
-    setConnectStatus("notConnect");
-    setListening(refreshListeningStatus());
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-      console.log("Disconnecting media streams");
-    }
-    setIsSharing(false);
-    setOutputText("");
-    setAnswers("");
-    setQuestion("");
-    setInputText("");
-    setChatHistory([]);
-    setActiveStopSession(null);
-    // Show welcome message again when session stops
-    setShowWelcome(true);
-  };
-
-  const handleLimitReached = () => {
-      alert("Session time limit reached.");
-      disconnectWebSocket();
-  };
-
-  useImperativeHandle(ref, () => ({
-    stopSession: disconnectWebSocket,
-  }));
+    return () => window.removeEventListener("resize", resizeCanvas);
+  }, [showWelcome]);
 
   return (
     <Box display="flex" flexDirection="column" alignItems="center" gap={2} p={2} height={"720px"}>
-      <Box
-        className="video-container"
-        sx={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          overflow: "hidden",
-          borderRadius: 2,
-          backgroundColor: 'background.paper',
-          position: 'relative',
-        }}
-      >
-        {/* Welcome Message - Shows when no session is active */}
+      <Box className="video-container" sx={{
+        width: "100%", height: "100%", display: "flex", alignItems: "center",
+        justifyContent: "center", overflow: "hidden", borderRadius: 2,
+        backgroundColor: 'background.paper', position: 'relative'
+      }}>
         {showWelcome && connectStatus === "notConnect" && (
-          <Paper
-            elevation={3}
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              p: 4,
-              textAlign: 'center',
-              bgcolor: (theme) =>
-                theme.palette.mode === 'dark' ? 'primary.dark' : 'primary.light',
-              color: (theme) =>
-                theme.palette.mode === 'dark' ? 'primary.contrastText' : 'primary.contrastText',
-              border: 2,
-              borderColor: 'primary.main',
-              borderRadius: 2,
-              zIndex: 10,
-            }}
-          >
-            <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
-              🎤 Ready to Start Your Interview Session!
-            </Typography>
-            
-            <Typography variant="body1" sx={{ mb: 3, maxWidth: '80%' }}>
-              To begin your mock interview session, click the <strong>"Start Session"</strong> button below.
-            </Typography>
-
-            <Box
-              sx={{
-                p: 3,
-                mb: 3,
-                bgcolor: (theme) =>
-                  theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100',
-                border: 1,
-                borderColor: 'divider',
-                borderRadius: 2,
-                maxWidth: '80%',
-              }}
-            >
-              <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary', mb: 1 }}>
-                Steps to start:
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                1. Click <strong>"Start Session"</strong> button<br />
-                2. Wait for connection to establish<br />
-                3. Look for <strong>"Listening..."</strong> status<br />
-                4. Start speaking to begin the interview
-              </Typography>
-            </Box>
-
-            <Typography variant="caption" sx={{ maxWidth: '80%' }}>
-              Once you start the session, this message will disappear and the audio visualization will appear.
-              The AI interviewer will wait for you to speak first.
-            </Typography>
+          <Paper elevation={3} sx={{
+            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', p: 4, textAlign: 'center',
+            bgcolor: 'primary.light', color: 'primary.contrastText', border: 2, borderColor: 'primary.main', zIndex: 10
+          }}>
+            <Typography variant="h5" fontWeight="bold">🎤 Ready to Start!</Typography>
+            <Typography variant="body1" sx={{ mt: 2 }}>Click "Start Session" to begin your mock interview.</Typography>
           </Paper>
         )}
 
-        {/* Canvas - Shows when session is active or connecting */}
         {!showWelcome && (
-          <canvas 
-            ref={canvasRef} 
-            width="100%" 
-            height="100%" 
-            style={{
-              opacity: connectStatus === "connected" ? 1 : 0.5
-            }}
-          />
+          <canvas ref={canvasRef} width="100%" height="100%" style={{ opacity: connectStatus === "connected" ? 1 : 0.5 }} />
         )}
+
+        <Fade in={isReconnecting}>
+          <Box sx={{
+            position: 'absolute', top: 20, left: 20, bgcolor: 'rgba(0,0,0,0.7)',
+            color: 'white', px: 2, py: 1, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1, zIndex: 20
+          }}>
+            <CircularProgress size={16} color="inherit" />
+            <Typography variant="caption">Refreshing AI context...</Typography>
+          </Box>
+        </Fade>
+
         {connectStatus === "connected" && startTime && (
-        <SessionTimer 
-            startTime={startTime} 
-            isActive={true}
-            featureCode="INTERVIEW_PREP" // Match DB
-            onLimitReached={handleLimitReached}
-        />
-      )}
+          <SessionTimer startTime={startTime} isActive={true} featureCode="INTERVIEW_PREP" onLimitReached={handleLimitReached} />
+        )}
       </Box>
 
-      {connectStatus === "connected" ? (
-        <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
-          <Typography variant="caption" color="text.secondary" sx={{mt: 1}}>
-            Listening...
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={disconnectWebSocket}
-          >
-            {refreshStatusButtonUI()}
-          </Button>
-        </Box>
-      ) : (
+      <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
+        {connectStatus === "connected" && <Typography variant="caption" color="text.secondary">Listening...</Typography>}
         <Button
           variant="contained"
           color="primary"
-          onClick={connectWebSocket}
+          onClick={connectStatus === "connected" ? disconnectWebSocket : startSession}
           disabled={connectStatus === "connecting"}
           size="large"
-          sx={{ minWidth: '140px' }}
         >
-          {connectStatus === "connecting" ? (
-            <Box display="flex" alignItems="center" gap={1}>
-              <CircularProgress size={16} color="inherit" />
-              Connecting...
-            </Box>
-          ) : (
-            "Start Session"
-          )}
+          {connectStatus === "connecting" ? <CircularProgress size={20} color="inherit" /> : refreshStatusButtonUI()}
         </Button>
-      )}
+      </Box>
     </Box>
   );
 });

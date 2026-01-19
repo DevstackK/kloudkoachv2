@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import LZString from "lz-string";
-import { jwtDecode } from "jwt-decode"; 
+import { jwtDecode } from "jwt-decode";
 import { authService, subscriptionService } from '../services/api';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [usage, setUsage] = useState(null); 
+  const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Helper: Check if token is expired
@@ -38,14 +38,14 @@ export const AuthProvider = ({ children }) => {
     try {
       // Assuming you have an endpoint like GET /Auth/me or /Auth/profile
       // If not, you can rely on manual updates using updateUser() below
-      const response = await authService.getProfile(); 
+      const response = await authService.getProfile();
       if (response.data && response.data.success) {
-         const freshUserData = response.data.data;
-         // Preserve the token if the backend doesn't send a new one
-         if (!freshUserData.token && user?.token) {
-             freshUserData.token = user.token;
-         }
-         updateUser(freshUserData);
+        const freshUserData = response.data.data;
+        // Preserve the token if the backend doesn't send a new one
+        if (!freshUserData.token && user?.token) {
+          freshUserData.token = user.token;
+        }
+        updateUser(freshUserData);
       }
     } catch (error) {
       console.error("Failed to refresh profile:", error);
@@ -55,17 +55,17 @@ export const AuthProvider = ({ children }) => {
   // NEW: Manual Update Helper (Merges new data with existing user)
   const updateUser = (newData) => {
     setUser((prevUser) => {
-        if (!prevUser) return null;
-        
-        const updatedUser = { ...prevUser, ...newData };
-        
-        // Handle compression if course material is being updated
-        if (newData.courseMaterialText && !newData.isCompressed) { // flag to avoid double compression
-             updatedUser.courseMaterialText = LZString.decompressFromUTF16(newData.courseMaterialText);
-        }
+      if (!prevUser) return null;
 
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        return updatedUser;
+      const updatedUser = { ...prevUser, ...newData };
+
+      // Handle compression if course material is being updated
+      if (newData.courseMaterialText && !newData.isCompressed) { // flag to avoid double compression
+        updatedUser.courseMaterialText = LZString.decompressFromUTF16(newData.courseMaterialText);
+      }
+
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      return updatedUser;
     });
   };
 
@@ -77,30 +77,39 @@ export const AuthProvider = ({ children }) => {
           const parsedUser = JSON.parse(userData);
 
           if (parsedUser.token && !isTokenExpired(parsedUser.token)) {
-              
-              if (parsedUser.courseMaterialText) {
-                parsedUser.courseMaterialText = LZString.decompressFromUTF16(parsedUser.courseMaterialText);
-              }
-              
-              setUser(parsedUser);
-              
-              // Fetch usage
-              try {
-                const API_URL = process.env.REACT_APP_API_URL;
-                const usageRes = await fetch(`${API_URL}/Subscription/usage`, {
-                    headers: { 'Authorization': `Bearer ${parsedUser.token}` }
-                });
-                const usageData = await usageRes.json();
-                if(usageData.success) setUsage(usageData.data);
-              } catch(e) { 
-                console.error("Usage fetch error", e); 
+
+            if (parsedUser.courseMaterialText) {
+              parsedUser.courseMaterialText = LZString.decompressFromUTF16(parsedUser.courseMaterialText);
+            }
+
+            setUser(parsedUser);
+
+            // Fetch usage
+            try {
+              const API_URL = process.env.REACT_APP_API_URL;
+              const usageRes = await fetch(`${API_URL}/Subscription/usage`, {
+                headers: { 'Authorization': `Bearer ${parsedUser.token}` }
+              });
+              const usageData = await usageRes.json();
+              if (usageData.success) setUsage(usageData.data);
+            } catch (e) {
+              console.error("Usage fetch error", e);
+              if (e.response && (e.response.status === 401 || e.response.status === 403)) {
+                console.warn("Session expired. Clearing storage.");
+                localStorage.removeItem('user');
+                setUser(null);
+                setUsage(null);
+                logout(); // Clears local storage and user state
+                window.location.href = '/login'; // Force redirect
               }
 
+            }
+
           } else {
-              console.warn("Session expired. Clearing storage.");
-              localStorage.removeItem('user');
-              setUser(null);
-              setUsage(null);
+            console.warn("Session expired. Clearing storage.");
+            localStorage.removeItem('user');
+            setUser(null);
+            setUsage(null);
           }
 
         } catch (error) {
@@ -117,13 +126,13 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const response = await authService.login(email, password);
-      const userData = response.data; 
+      const userData = response.data;
 
       if (userData && userData.token) {
         if (userData.courseMaterialText) {
           userData.courseMaterialText = LZString.decompressFromUTF16(userData.courseMaterialText);
         }
-        
+
         setUser(userData);
         localStorage.setItem('user', JSON.stringify(userData));
         await refreshUsage();
@@ -139,7 +148,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (name, email, password) => {
     try {
       const response = await authService.register(name, email, password);
-      return response; 
+      return response;
     } catch (error) {
       console.error('Registration error:', error);
       throw error;
@@ -153,50 +162,50 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUserResume = (resumeRawText = "", resumeStructuredData = "{}") => {
-      updateUser({ resumeRawText, resumeStructuredData });
+    updateUser({ resumeRawText, resumeStructuredData });
   };
 
   const updateUserCourseMaterial = (courseMaterialText = "") => {
-      updateUser({ courseMaterialText });
+    updateUser({ courseMaterialText });
   };
 
   const checkAccess = (featureCode) => {
     if (!usage || !usage.features) return false;
     const feature = usage.features.find(f => f.featureCode === featureCode);
     if (feature) {
-        if (feature.limit === -1) return true;
-        if (feature.remaining > 0) return true;
-        return false;
+      if (feature.limit === -1) return true;
+      if (feature.remaining > 0) return true;
+      return false;
     }
-    return false; 
+    return false;
   };
 
   const checkActive = (featureCode) => {
     if (!usage || !usage.features) return false;
     const feature = usage.features.find(f => f.featureCode === featureCode);
     if (feature) {
-        if (feature.isActive) return true;
-        return false;
+      if (feature.isActive) return true;
+      return false;
     }
-    return false; 
+    return false;
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
+    <AuthContext.Provider value={{
+      user,
       usage,
-      setUser, 
+      setUser,
       updateUser, // Expose this
       refreshProfile, // Expose this
-      login, 
-      register, 
-      logout, 
-      loading, 
-      updateUserResume, 
+      login,
+      register,
+      logout,
+      loading,
+      updateUserResume,
       updateUserCourseMaterial,
       refreshUsage,
       checkActive,
-      checkAccess 
+      checkAccess
     }}>
       {children}
     </AuthContext.Provider>
