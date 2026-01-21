@@ -91,10 +91,10 @@ export const AuthProvider = ({ children }) => {
                 headers: { 'Authorization': `Bearer ${parsedUser.token}` }
               });
               const usageData = await usageRes.json();
-              if (usageData.success) setUsage(usageData.data);
-            } catch (e) {
-              console.error("Usage fetch error", e);
-              if (e.response && (e.response.status === 401 || e.response.status === 403)) {
+              if (usageData.success) {
+                setUsage(usageData.data);
+              }
+              else {
                 console.warn("Session expired. Clearing storage.");
                 localStorage.removeItem('user');
                 setUser(null);
@@ -102,7 +102,8 @@ export const AuthProvider = ({ children }) => {
                 logout(); // Clears local storage and user state
                 window.location.href = '/login'; // Force redirect
               }
-
+            } catch (e) {
+              console.error("Usage fetch error", e);
             }
 
           } else {
