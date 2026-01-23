@@ -1,20 +1,18 @@
 import React, { useState, useRef, forwardRef, useImperativeHandle, useEffect } from "react";
-import { Box, Button, CircularProgress, Typography } from "@mui/material";
+import { Box, Button, Typography, Fade, CircularProgress } from "@mui/material";
 import "./LiveInterviewOpenAI.css";
-import { type } from "microsoft-cognitiveservices-speech-sdk/distrib/lib/src/common.speech/SpeechServiceConfig";
 import { useSession } from "../../../../context/SessionContext";
-import { useInterviewSetup } from '../../../../context/InterviewSetupContext'; // Import
+import { useInterviewSetup } from '../../../../context/InterviewSetupContext';
 import { useAuth } from "../../../../context/AuthContext";
-import api, { subscriptionService } from "../../../../services/api"; // âś… Import subscriptionService
-import SessionTimer from "../../../common/SessionTimer"; // âś… Import Timer
-
-const OPENAI_KEY=process.env.REACT_APP_OPENAI_API_KEY;
+import api, { subscriptionService } from "../../../../services/api";
+import SessionTimer from "../../../common/SessionTimer";
 
 const RTC_CONFIGURATION = {
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" }, // Google STUN server
-    ],
-  };
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+};
+
+// Reconnect interval in milliseconds (15 minutes to be safe within the 30m limit)
+const RECONNECT_INTERVAL_MS = 15 * 60 * 1000;
 
 const LiveInterviewOpenAI = forwardRef(({
   answers,
@@ -27,408 +25,417 @@ const LiveInterviewOpenAI = forwardRef(({
   onConnectionStatusChange,
   isFullscreen
 }, ref) => {
-  const { user, refreshUsage } = useAuth();
-  const [listeningOnMic, setListening] = useState(false);
-  const [connectStatus, setConnectStatus] = useState("notConnect");
-  const [peerConnection, setPeerConnection] = useState(null);
-  const [dataChannel, setDataChannel] = useState(null);
-  const [outputText, setOutputText] = useState("");
-  const [inputText, setInputText] = useState("");
 
-  const [dbSessionId, setDbSessionId] = useState(null);
-  const [startTime, setStartTime] = useState(null);
-
-  const localStreamRef = useRef(null);
-  const questionRef = useRef("");
-  const answersRef = useRef("");
-
-  const videoRef = useRef(null);
-  const [isSharing, setIsSharing] = useState(false);
-  const [stream, setStream] = useState(null);
+  // --- 1. HOOKS & CONTEXT ---
+  const { user, refreshUsage } = useAuth(); // FIXED: Destructured refreshUsage
   const { setActiveStopSession } = useSession();
   const { clearForm } = useInterviewSetup();
 
+  // --- 2. STATE ---
+  const [connectStatus, setConnectStatus] = useState("notConnect");
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [isSharing, setIsSharing] = useState(false); // FIXED: Added missing state
 
-  // Update button UI
+  const [dbSessionId, setDbSessionId] = useState(null);
+  const [startTime, setStartTime] = useState(null);
+  const [outputText, setOutputText] = useState("");
+  const [inputText, setInputText] = useState("");
+
+  // --- 3. REFS ---
+  // Active connection objects
+  const pcRef = useRef(null);
+  const dcRef = useRef(null);
+
+  // Persistent Media Stream (Screen Share)
+  const mediaStreamRef = useRef(null);
+
+  // Data Refs for event handling
+  const questionRef = useRef(""); // FIXED: Added missing ref
+  const answersRef = useRef("");
+  const wakeLockRef = useRef(null);
+  const videoRef = useRef(null);
+
+  // --- 4. EFFECTS ---
+
+  // Sync status to parent
+  useEffect(() => {
+    if (onConnectionStatusChange) onConnectionStatusChange(connectStatus);
+  }, [connectStatus, onConnectionStatusChange]);
+
+  // Usage Heartbeat (Every 1 min)
+  useEffect(() => {
+    let interval = null;
+    if (connectStatus === "connected" && dbSessionId) {
+      interval = setInterval(() => {
+        // console.log("💓 Sending session heartbeat (1 min usage)");
+        subscriptionService.recordUsage("LIVE_INTERVIEW", 1, dbSessionId.toString())
+          .catch(e => console.error("Heartbeat fail", e));
+      }, 60000);
+    }
+    return () => clearInterval(interval);
+  }, [connectStatus, dbSessionId]);
+
+  // Proactive Silent Reconnect (Every 15 mins)
+  useEffect(() => {
+    let timer = null;
+    if (connectStatus === "connected") {
+      // console.log(`⏱️ Auto-reconnect timer set for ${RECONNECT_INTERVAL_MS / 60000} mins`);
+      timer = setInterval(() => {
+        // console.log("♻️ Triggering proactive silent reconnect...");
+        performSilentReconnect();
+      }, RECONNECT_INTERVAL_MS);
+    }
+    return () => clearInterval(timer);
+  }, [connectStatus]);
+
+  // Cleanup on Unmount
+  useEffect(() => {
+    return () => {
+      // Force cleanup if component unmounts
+      if (pcRef.current) {
+        pcRef.current.close();
+      }
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+      releaseWakeLock();
+    };
+  }, []);
+
+  // --- 5. HELPER FUNCTIONS ---
+
+  const requestWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+      }
+    } catch (err) {
+      console.warn(`Wake Lock unavailable: ${err.message}`);
+    }
+  };
+
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current) {
+      try {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      } catch (err) {
+        console.error('Error releasing wake lock', err);
+      }
+    }
+  };
+
   const refreshStatusButtonUI = () => {
     if (connectStatus === "notConnect") return "Start Session";
     if (connectStatus === "connecting") return "Connecting...";
     if (connectStatus === "connected") return "Stop";
   };
 
-  const refreshListeningStatus = () => {
-    if (connectStatus === "connected")
-        {
-            return true;
-        }
-        else 
-        {
-            return false;
-        }
-  }
+  // --- 6. CORE LOGIC ---
 
-  const stopSharing = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
+  const startCapture = async () => {
+    try {
+      setConnectStatus("connecting");
+
+      // Request screen share ONLY ONCE
+      const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+      mediaStreamRef.current = stream;
+      setIsSharing(true);
+
+      // Handle user clicking "Stop Sharing" on browser UI
+      stream.getVideoTracks()[0].onended = () => {
+        // console.log("User stopped screen sharing via browser UI");
+        fullDisconnect();
+      };
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+
+      await requestWakeLock();
+
+      // Initial Connection
+      await connectToAI(false);
+
+    } catch (error) {
+      console.error("Media Error:", error);
+      setConnectStatus("notConnect");
+      setIsSharing(false);
     }
-    setIsSharing(false);
   };
 
-  // Get Secret Key from OpenAI API
-  const getOpenAIWebSocketSecretKey = async () => {
-    const response = await api.post('/Realtime/session', {
+  const connectToAI = async (isSilentReconnect = false) => {
+    if (isSilentReconnect) setIsReconnecting(true);
+
+    try {
+      // A. Get Ephemeral Token from Backend
+      const response = await api.post('/Realtime/session', {
         jobDescription: formData.jobDescription,
         cvText: formData.cv,
         jobTitle: formData.jobRole,
         interviewRound: formData.interviewRound,
         interviewType: "live-interview"
-    });
+      });
+      const secretDict = response.data;
 
-    // Axios returns data in response.data. The wrapper is { success: true, data: {...} }
-    const result = response.data;
-    
-    if (!result.success) {
-       throw new Error(result.error || "Failed to create session");
-    }
-
-    if (result.data.sessionId) {
-        setDbSessionId(result.data.sessionId);
-        setStartTime(new Date()); // Start timer locally
-    }
-    if (result.data.sessionId) {
-        console.log("Session ID received:", result.data.sessionId); // Debug Log
-        setDbSessionId(result.data.sessionId);
-        setStartTime(new Date()); // Start timer locally
-    } else {
-        console.warn("⚠️ No Session ID returned from backend!", result);
-    }
-    return result;
-  };
-
-  // Connect to WebRTC and OpenAI
-  const connectWebSocket = async () => {
-    if (connectStatus !== "notConnect") {
-      return;
-    }
-    setConnectStatus("connecting");
-    setListening(refreshListeningStatus());
-
-    try {
-      // 1. Get WebSocket key
-      const secretDict = await getOpenAIWebSocketSecretKey();
-
-      // 2. Init RTCPeerConnection
-      const pc = new RTCPeerConnection(RTC_CONFIGURATION);
-      console.log("1. Init RTCPeerConnection");
-
-      // 3. Setup local audio
-      console.log("2. Setup local audio");
-      const localStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
-      setStream(localStream);
-      setIsSharing(true);
-      if (videoRef.current) {
-        videoRef.current.srcObject = localStream;
-        videoRef.current.play();
+      // Only set DB Session ID on first connect (not reconnects)
+      if (!isSilentReconnect && secretDict.data.sessionId) {
+        setDbSessionId(secretDict.data.sessionId);
+        setStartTime(new Date());
       }
 
-      if (!localStream || localStream.getTracks().length === 0) {
-        console.error("No audio tracks found in the local stream");
-        setConnectStatus("notConnect");
-        setListening(refreshListeningStatus());
-        return;
+      // B. Create NEW Peer Connection
+      const newPC = new RTCPeerConnection(RTC_CONFIGURATION);
+
+      // C. Attach EXISTING Stream Tracks to New PC
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => {
+          newPC.addTrack(track, mediaStreamRef.current);
+        });
       }
 
-      localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
-      localStreamRef.current = localStream;
-
-      // pc.ontrack = (event) => {
-      //   console.log("Remote audio track received:", event.streams[0]);
-      //   if (event.streams[0]) {
-      //     const audioElement = new Audio();
-      //     audioElement.srcObject = event.streams[0];
-      //     audioElement.play().catch((error) => console.error('Audio play error:', error));
-      //   }
-      // };
-
-      pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === 'failed' || 
-            pc.iceConnectionState === 'disconnected' || 
-            pc.iceConnectionState === 'closed') {
-
-          console.warn("WebRTC connection failed or disconnected. Stopping session.");
-          disconnectWebSocket();
-        }
+      // D. Setup Audio Output
+      newPC.ontrack = (e) => {
+        const audioEl = new Audio();
+        audioEl.srcObject = e.streams[0];
+        audioEl.play().catch(e => console.error("Audio play error", e));
       };
 
-      // 4. Create data channel
-      console.log("3. Create data channel");
-      const channel = pc.createDataChannel("oai-events", { ordered: true });
-      channel.onopen = () => {
-        console.log("Data channel is open");
-        setDataChannel(channel);
-      };
+      // E. Data Channel & Events
+      const newDataChannel = newPC.createDataChannel("oai-events", { ordered: true });
+      newDataChannel.onmessage = handleOpenAIEvent;
 
-      channel.onmessage = (event) => {
-        handleOpenAIEvent(event);
-      };
+      // F. SDP Handshake
+      const offer = await newPC.createOffer();
+      await newPC.setLocalDescription(offer);
 
-      setPeerConnection(pc);
-      setDataChannel(channel);
-
-      // 5. Create SDP Offer
-      console.log("4. Create SDP Offer");
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: false,
+      const baseUrl = "https://ks-ai-gpt-realtime-resource.openai.azure.com/openai/v1/realtime?model=realtime";
+      const sdpResponse = await fetch(baseUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${secretDict.data.clientSecret}`,
+          "Content-Type": "application/sdp"
+        },
+        body: offer.sdp
       });
 
-      if (!offer.sdp || !offer.sdp.includes("m=audio")) {
-        setConnectStatus("notConnect");
-        setListening(refreshListeningStatus());
-        return;
-      }
+      if (!sdpResponse.ok) throw new Error("SDP Exchange failed");
 
-      // 6. Set Local Description
-      console.log("5. Set Local Description");
-      await pc.setLocalDescription(new RTCSessionDescription(offer));
+      const answerSdp = await sdpResponse.text();
+      await newPC.setRemoteDescription({ type: "answer", sdp: answerSdp });
 
-      // 7. Send SDP to OpenAI
-      console.log("6. Send SDP to OpenAI");
-      const clientSecret = secretDict?.data?.clientSecret;
-      if (clientSecret) {
-        await sendSDPToServer(pc, offer, clientSecret);
-        setConnectStatus("connected");
-        setListening(refreshListeningStatus());
-        setActiveStopSession(() => disconnectWebSocket);
-        clearForm();
+      // G. HANDOVER LOGIC
+      if (isSilentReconnect) {
+        // console.log("🔀 Handover: Switching to new connection...");
+
+        // Close OLD connection refs
+        if (pcRef.current) pcRef.current.close();
+        if (dcRef.current) dcRef.current.close();
+
+        // Swap Refs
+        pcRef.current = newPC;
+        dcRef.current = newDataChannel;
+
+        setIsReconnecting(false);
+        // console.log("✅ Handover complete. Stream maintained.");
       } else {
-        console.error("Client secret is missing");
-        setConnectStatus("notConnect");
-        setListening(refreshListeningStatus());
+        // First time setup
+        pcRef.current = newPC;
+        dcRef.current = newDataChannel;
+        setConnectStatus("connected");
+        setActiveStopSession(() => fullDisconnect());
+        clearForm();
       }
-    } catch (error) {
-      setConnectStatus("notConnect");
-      setListening(refreshListeningStatus());
+
+    } catch (err) {
+      console.error("Connection failed:", err);
+      if (!isSilentReconnect) setConnectStatus("notConnect");
+      setIsReconnecting(false);
     }
   };
 
-  // Send SDP to service
-  const sendSDPToServer = async (pc, offer, clientSecret) => {
-    const url = "https://ks-ai-gpt-realtime-resource.openai.azure.com/openai/v1/realtime?model=realtime";
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${clientSecret}`,
-        "Content-Type": "application/sdp",
-      },
-      body: offer.sdp,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to send SDP to server: ${response.statusText}`);
+  const performSilentReconnect = () => {
+    // Verify we still have a stream before trying
+    if (mediaStreamRef.current && mediaStreamRef.current.active) {
+      connectToAI(true);
+    } else {
+      console.warn("Cannot reconnect: Media stream is dead.");
+      fullDisconnect();
     }
-
-    const remoteSDP = await response.text();
-    await pc.setRemoteDescription(new RTCSessionDescription({ type: "answer", sdp: remoteSDP }));
   };
 
+  const fullDisconnect = async () => {
+    await releaseWakeLock();
+
+    // Close PC
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+
+    // Stop Media Tracks (Kill screen share)
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(t => t.stop());
+      mediaStreamRef.current = null;
+    }
+
+    // Stop Backend Session
+    if (dbSessionId) {
+      try {
+        // console.log(`Stopping session ${dbSessionId}...`);
+        await subscriptionService.stopSession(dbSessionId, 0);
+
+        // FIXED: refreshUsage is now properly defined from useAuth
+        if (refreshUsage) await refreshUsage();
+      } catch (e) { console.error(e); }
+      setDbSessionId(null);
+    }
+
+    setConnectStatus("notConnect");
+    setIsReconnecting(false);
+
+    // Reset UI state
+    setAnswers("");
+    setQuestion("");
+    setIsSharing(false); // FIXED: properly defined in useState
+    setChatHistory([]);
+    setActiveStopSession(null);
+  };
+
+  const handleLimitReached = () => {
+    alert("You have reached your session time limit for this plan.");
+    fullDisconnect();
+  };
+
+  // --- 7. EVENT HANDLERS ---
   const handleDone = () => {
-    const questionSnapshot = questionRef.current;
+    const questionSnapshot = questionRef.current; // FIXED: properly defined in useRef
     const answerSnapshot = answersRef.current;
-    setChatHistory(prev => [
-      ...prev,
-      {
-        question: questionSnapshot,
-        answer: answerSnapshot,
-        timestamp: new Date().toISOString()
-      }
-    ]);
+
+    if (questionSnapshot || answerSnapshot) {
+      setChatHistory(prev => [
+        ...prev,
+        {
+          question: questionSnapshot,
+          answer: answerSnapshot,
+          timestamp: new Date().toISOString()
+        }
+      ]);
+    }
+
     setInputText('');
     setOutputText('');
     setAnswers('');
     setQuestion('');
-  };  
-  
+    questionRef.current = ""; // Reset ref
+    answersRef.current = ""; // Reset ref
+  };
 
-  // Handle OpenAI Event
   const handleOpenAIEvent = async (event) => {
     const message = JSON.parse(event.data);
     const { type } = message;
-    console.log(message);
+
+    // Handle Session Expired Error (Backup for the timer)
+    if (message.type === 'error' && message.error?.code === 'session_expired') {
+      // console.warn("⚠️ Received session_expired from API. Triggering immediate reconnect.");
+      performSilentReconnect();
+      return;
+    }
+
     switch (type) {
       case "response.output_audio_transcript.delta":
         try {
-            // Use functional update to get latest state
-            setOutputText(prev => {
+          setOutputText(prev => {
             const newText = prev + (message.delta || "");
-            // Update parent component's state with latest value
             setAnswers(newText);
             answersRef.current = newText;
             return newText;
           });
         } catch (error) {
           console.error("Error handling transcript delta:", error);
-          setAnswers("Error processing transcript");
         }
         break;
-        case "response.output_item.done":
-          handleDone();
-          break;
+
+      case "response.output_item.done":
+        handleDone();
+        break;
+
       case "conversation.item.input_audio_transcription.completed":
         try {
-            // Use functional update to get latest state
-            setInputText(prev => {
+          setInputText(prev => {
             const newText = prev + (message.transcript || "");
-            // Update parent component's state with latest value
             setQuestion(newText);
-            questionRef.current = newText;
+            questionRef.current = newText; // FIXED: properly defined in useRef
             return newText;
           });
         } catch (error) {
           console.error("Error handling transcript delta:", error);
-          setQuestion("Error processing transcript");
         }
-        break;
-      case "session.updated":
-        console.log("Session updated:", message.session);
-        break;
-      case "session.created":
-        console.log("Session created");
         break;
       default:
         break;
     }
   };
 
-  // Disconnect WebRTC
-  const disconnectWebSocket = async () => {
-    // 1. Clean up WebRTC
-    if (peerConnection) {
-      peerConnection.close();
-      setPeerConnection(null);
-    }
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
-    }
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-
-    // 2. Call Backend to Stop Session & Record Usage
-    if (dbSessionId) {
-        try {
-            console.log(`Stopping session ${dbSessionId}...`);
-            await subscriptionService.stopSession(dbSessionId, 0); // Pass 0 tokens for now, allow backend to calc time
-            await refreshUsage(); // Update global usage bar
-        } catch (error) {
-            console.error("Failed to stop session on backend", error);
-        }
-        setDbSessionId(null);
-    }
-
-    // 3. Reset UI State
-    setConnectStatus("notConnect");
-    setOutputText("");
-    setAnswers("");
-    setQuestion("");
-    setInputText("");
-    setChatHistory([]);
-    setActiveStopSession(null);
-  };
-
-  const handleLimitReached = () => {
-    alert("You have reached your session time limit.");
-    disconnectWebSocket();
-  };
-
   useImperativeHandle(ref, () => ({
-    stopSession: disconnectWebSocket,
+    stopSession: fullDisconnect,
   }));
-
-  useEffect(() => {
-      // Return a cleanup function
-      return () => {
-        // If the component unmounts, check if a connection is active
-        if (peerConnection) { 
-          console.log("Component unmounting, stopping session...");
-          disconnectWebSocket();
-        }
-        if (onConnectionStatusChange) {
-          onConnectionStatusChange(connectStatus);
-        }
-      };
-      // peerConnection is a good dependency. When it's set or cleared,
-      // this effect re-evaluates. The cleanup runs when it unmounts.
-    }, [peerConnection, onConnectionStatusChange]); // Dependency on peerConnection
 
   return (
     <Box display="flex" flexDirection="column" alignItems="center" gap={2} p={isFullscreen ? 0 : 2} height="100%">
-      <Box
-        className="video-container"
-        sx={{
-          width: "100%",
-          height: "100%",             // take full height of parent Box
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          overflow: "hidden",
-          borderRadius: isFullscreen ? 0 : 2, // No radius in fullscreen
-          backgroundColor: "#000", // optional, adds black bars if needed
-        }}
-      >
+      <Box className="video-container" sx={{
+        width: "100%", height: "100%", display: "flex", alignItems: "center",
+        justifyContent: "center", overflow: "hidden", borderRadius: isFullscreen ? 0 : 2,
+        backgroundColor: "#000", position: "relative"
+      }}>
         <video
-        muted
-        ref={videoRef}
-        autoPlay
-        playsInline
-        className="video-element"
-        style={{
-            // 4. Conditional styling for fullscreen video
-            objectFit: isFullscreen ? "cover" : "contain", // Cover fills the screen
-            borderRadius: isFullscreen ? 0 : "12px",
-            
-            // --- Fullscreen Video Styles ---
-            position: isFullscreen ? 'fixed' : 'relative',
-            top: isFullscreen ? 0 : 'auto',
-            left: isFullscreen ? 0 : 'auto',
-            width: isFullscreen ? '100vw' : '100%',
-            height: isFullscreen ? '100vh' : '100%',
-            zIndex: isFullscreen ? 1900 : 'auto', // Behind controls and transcript
-            pointerEvents: isFullscreen ? 'none' : 'auto', // Click-through
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          className="video-element"
+          style={{
+            objectFit: isFullscreen ? "cover" : "contain",
+            width: "100%", height: "100%",
+            borderRadius: isFullscreen ? 0 : "12px"
           }}
-      />
+        />
+
+        {/* Reconnecting Indicator */}
+        <Fade in={isReconnecting}>
+          <Box sx={{
+            position: 'absolute', top: 20, right: 20,
+            bgcolor: 'rgba(0,0,0,0.7)', color: 'white',
+            px: 2, py: 1, borderRadius: 2,
+            display: 'flex', alignItems: 'center', gap: 1, zIndex: 10
+          }}>
+            <CircularProgress size={16} color="inherit" />
+            <Typography variant="caption">Refreshing Connection...</Typography>
+          </Box>
+        </Fade>
       </Box>
 
+      {/* Controls */}
       {connectStatus === "connected" ? (
         <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
-          {connectStatus === 'connected' && <Typography variant="caption" color="text.secondary" sx={{mt: 1}}>Listening...</Typography>}
-          {connectStatus === "connected" && startTime && (
-          <SessionTimer 
-                startTime={startTime} 
-                isActive={true}
-                featureCode="LIVE_INTERVIEW" // Must match DB
-                onLimitReached={handleLimitReached}
+          {connectStatus === 'connected' && <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Listening...</Typography>}
+
+          {startTime && (
+            <SessionTimer
+              startTime={startTime}
+              isActive={true}
+              featureCode="LIVE_INTERVIEW"
+              onLimitReached={handleLimitReached}
             />
           )}
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={disconnectWebSocket}
-          >
-            {refreshStatusButtonUI()}
+
+          <Button variant="contained" color="primary" onClick={fullDisconnect}>
+            Stop Session
           </Button>
         </Box>
       ) : (
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={connectWebSocket}
-          disabled={connectStatus === "connecting"}
-        >
+        <Button variant="contained" color="primary" onClick={startCapture} disabled={connectStatus === "connecting"}>
           {refreshStatusButtonUI()}
         </Button>
       )}

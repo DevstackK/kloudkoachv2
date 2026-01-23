@@ -37,11 +37,18 @@ export const subscriptionService = {
   createCheckoutSession: (planId) => api.post('/Subscription/create-checkout-session', { planId }),
   getUsageSummary: () => api.get('/Subscription/usage'),
   stopSession: (sessionId, tokensUsed = 0, transcript = []) => api.post(`/Subscription/session/${sessionId}/stop`, { tokensUsed, transcript }),
+  recordUsage: (featureCode, usedAmount, referenceId = "") =>
+    api.post('/Subscription/usage/record', {
+      featureCode,
+      usedAmount,
+      referenceId
+    }),
 };
 
 export const resumeService = {
   getResume: () => api.get('/resume'),
   getAllResumes: () => api.get('/resume/all'), // New
+  parseResume: (rawTextDescription) => api.post('/resume/builder/parse', { rawData: rawTextDescription }),
   saveResume: (data) => api.post('/resume', data),
   activateResume: (id) => api.put(`/resume/${id}/activate`), // New
   deleteResume: (id) => api.delete(`/resume/${id}`), // New (Hard Delete)
@@ -51,7 +58,7 @@ export const resumeService = {
 export const analyticsService = {
   getSessionAnalytics: (sessionId) => api.get(`/Analytics/session/${sessionId}`),
   // NEW: Fetch history
-  getSessionHistory: () => api.get('/Analytics/history'), 
+  getSessionHistory: () => api.get('/Analytics/history'),
 };
 
 export const securityService = {
