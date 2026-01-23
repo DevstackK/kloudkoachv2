@@ -1,5 +1,3 @@
-// src/components/layout/navConfig.js
-
 export const mainNavLinks = [
   {
     title: 'Home',
@@ -12,6 +10,10 @@ export const mainNavLinks = [
   {
     title: 'Interview Preparation',
     path: '/dashboard/interview-preparation',
+  },
+  {
+    title: 'Resume Builder',
+    path: '/dashboard/resume-builder',
   },
 ];
 

@@ -21,6 +21,7 @@ import SessionAnalytics from './components/dashboard/SessionAnalytics';
 import UserProfile from './pages/Profile/UserProfile';
 import TermsPage from './pages/Legal/TermsPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'; // Import
+import ResumeBuilderPage from './pages/ResumeBuilder/ResumeBuilderPage';
 
 function AppRoutes() {
   const { user } = useAuth(); // Get user status to handle redirects
@@ -29,9 +30,9 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public Routes */}
-      <Route 
-        path="/" 
-        element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />} 
+      <Route
+        path="/"
+        element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />}
       />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<Navigate to="/" replace />} />
@@ -50,31 +51,39 @@ function AppRoutes() {
       >
         <Route index element={<HomePage />} />
         <Route path="analytics/:sessionId" element={<SessionAnalytics />} />
-        <Route 
-          path="interview" 
+        <Route
+          path="interview"
           element={
             <FeatureRoute featureCode="LIVE_INTERVIEW">
               <LiveInterviewPage />
             </FeatureRoute>
-          } 
+          }
         />
-        
-        <Route 
-          path="interview-preparation" 
+
+        <Route
+          path="interview-preparation"
           element={
             <FeatureRoute featureCode="INTERVIEW_PREP">
               <InterviewPreparationPage />
             </FeatureRoute>
-          } 
+          }
         />
-        
-        <Route 
-          path="exam-preparation" 
+
+        {/* <Route
+          path="exam-preparation"
           element={
             <FeatureRoute featureCode="EXAM_PREP">
               <ExamPreparationPage />
             </FeatureRoute>
-          } 
+          }
+        /> */}
+        <Route
+          path="resume-builder"
+          element={
+            <FeatureRoute featureCode="RESUME_BUILDER">
+              <ResumeBuilderPage />
+            </FeatureRoute>
+          }
         />
         <Route path="history" element={<SessionHistory />} />
         <Route path="upgrade" element={<UpgradePlanPage />} />
@@ -95,7 +104,7 @@ function App() {
       <InterviewSetupProvider>
         <ExamSetupProvider>
           <Router>
-             <AppRoutes />
+            <AppRoutes />
           </Router>
         </ExamSetupProvider>
       </InterviewSetupProvider>
