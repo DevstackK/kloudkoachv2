@@ -30,7 +30,7 @@ import UsageMonitor from '../../components/common/UsageMonitor';
 
 const HomePage = () => {
   const theme = useTheme();
-  const { checkAccess, checkActive, user, refreshProfile, refreshUsage } = useAuth(); 
+  const { checkAccess, checkActive, user, refreshProfile, refreshUsage } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -43,26 +43,26 @@ const HomePage = () => {
         setIsProcessingPayment(true); // <--- Start Loading
 
         try {
-            // A. Refresh Data Immediately
-            await refreshProfile(); // Get new Plan Name
-            await refreshUsage();   // Get new Usage Limits
+          // A. Refresh Data Immediately
+          await refreshProfile(); // Get new Plan Name
+          await refreshUsage();   // Get new Usage Limits
 
-            // B. Show Success Message
-            setShowSuccessDialog(true);
+          // B. Show Success Message
+          setShowSuccessDialog(true);
 
-            // C. Clean URL (Remove ?payment=success so it doesn't trigger again on reload)
-            navigate('/dashboard', { replace: true });
+          // C. Clean URL (Remove ?payment=success so it doesn't trigger again on reload)
+          navigate('/dashboard', { replace: true });
         } catch (error) {
-            console.error("Error refreshing subscription data:", error);
+          console.error("Error refreshing subscription data:", error);
         } finally {
-            setIsProcessingPayment(false); // <--- Stop Loading
+          setIsProcessingPayment(false); // <--- Stop Loading
         }
       }
     };
 
     handlePaymentSuccess();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]); 
+  }, [searchParams]);
 
   const handlePaymentSuccessClose = () => {
     setShowSuccessDialog(false);
@@ -84,12 +84,19 @@ const HomePage = () => {
       icon: <ModelTrainingIcon sx={{ fontSize: 40 }} />,
     },
     {
-       title: 'Exam Preparation',
-       description: 'Prepare for your exams with AI-powered practice sessions.',
-       path: '/dashboard/exam-preparation',
-       featureCode: 'EXAM_PREP',
-       icon: <SchoolIcon sx={{ fontSize: 40 }} />,
+      title: 'AI Resume Builder',
+      description: 'Build, optimize, and export ATS-friendly resumes instantly.',
+      path: '/dashboard/resume-builder',
+      featureCode: 'RESUME_BUILDER',
+      icon: <AutoFixHighIcon sx={{ fontSize: 40 }} />,
     },
+    // {
+    //   title: 'Exam Preparation',
+    //   description: 'Prepare for your exams with AI-powered practice sessions.',
+    //   path: '/dashboard/exam-preparation',
+    //   featureCode: 'EXAM_PREP',
+    //   icon: <SchoolIcon sx={{ fontSize: 40 }} />,
+    // },
     {
       title: 'Elocution Practice',
       description: 'Improve speech clarity and pronunciation with AI feedback.',
@@ -108,19 +115,19 @@ const HomePage = () => {
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
-      
+
       {/* --- NEW: Processing Backdrop --- */}
       <Backdrop
-        sx={{ 
-            color: '#fff', 
-            zIndex: (theme) => theme.zIndex.drawer + 1,
-            flexDirection: 'column'
+        sx={{
+          color: '#fff',
+          zIndex: (theme) => theme.zIndex.drawer + 1,
+          flexDirection: 'column'
         }}
         open={isProcessingPayment}
       >
         <CircularProgress color="inherit" size={60} />
         <Typography variant="h6" sx={{ mt: 2, fontWeight: 'bold' }}>
-            Finalizing your upgrade...
+          Finalizing your upgrade...
         </Typography>
       </Backdrop>
       {/* -------------------------------- */}
@@ -131,16 +138,16 @@ const HomePage = () => {
         onClose={handlePaymentSuccessClose}
         aria-labelledby="payment-success-title"
         slotProps={{
-            backdrop: {
-                sx: {
-                    backdropFilter: 'blur(10px)',
-                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                }
+          backdrop: {
+            sx: {
+              backdropFilter: 'blur(10px)',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
             }
+          }
         }}
         PaperProps={{
-            elevation: 24,
-            sx: { borderRadius: 3, p: 1 }
+          elevation: 24,
+          sx: { borderRadius: 3, p: 1 }
         }}
       >
         <DialogTitle id="payment-success-title" sx={{ color: 'success.main', fontWeight: 'bold', textAlign: 'center' }}>
@@ -154,9 +161,9 @@ const HomePage = () => {
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ p: 2, justifyContent: 'center' }}>
-          <Button 
-            onClick={handlePaymentSuccessClose} 
-            variant="contained" 
+          <Button
+            onClick={handlePaymentSuccessClose}
+            variant="contained"
             color="primary"
             autoFocus
             sx={{ px: 4, borderRadius: 2 }}
@@ -169,10 +176,10 @@ const HomePage = () => {
 
       {/* Welcome Section */}
       <Box mb={4} textAlign="center">
-        <Typography 
-          variant="h4" 
-          component="h1" 
-          gutterBottom 
+        <Typography
+          variant="h4"
+          component="h1"
+          gutterBottom
           sx={{ fontWeight: 800, color: 'primary.main' }}
         >
           Welcome back, {user?.name?.split(' ')[0] || 'User'}!
@@ -186,7 +193,7 @@ const HomePage = () => {
       <Box mb={4} maxWidth="sm" mx="auto">
         <UsageMonitor />
       </Box>
-      
+
       <Grid container spacing={3} justifyContent="center" alignItems="stretch">
         {options.map((option) => {
           // Check access based on usage data
@@ -211,49 +218,49 @@ const HomePage = () => {
                   borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
                   bgcolor: 'background.paper',
                   transition: 'all 0.3s ease-in-out',
-                  
+
                   // --- Styling for Locked vs Unlocked ---
-                  opacity: isAllowed ? 1 : 0.75, 
-                  filter: isAllowed ? 'none' : 'grayscale(90%)', 
-                  
+                  opacity: isAllowed ? 1 : 0.75,
+                  filter: isAllowed ? 'none' : 'grayscale(90%)',
+
                   '&:hover': {
                     transform: 'translateY(-8px)',
                     filter: 'none',
                     opacity: 1,
-                    borderColor: isAllowed ? 'primary.main' : 'secondary.main', 
-                    boxShadow: theme.palette.mode === 'dark' 
-                      ? '0 12px 30px rgba(0,0,0,0.5)' 
+                    borderColor: isAllowed ? 'primary.main' : 'secondary.main',
+                    boxShadow: theme.palette.mode === 'dark'
+                      ? '0 12px 30px rgba(0,0,0,0.5)'
                       : '0 12px 30px rgba(123, 31, 162, 0.2)',
                   },
                 }}
               >
-                <CardActionArea 
+                <CardActionArea
                   component={planIsActive ? RouterLink : 'div'}
-                  to={allowedActive ? option.path : '/dashboard/upgrade'} 
-                  sx={{ 
-                    height: '100%', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'stretch', 
+                  to={allowedActive ? option.path : '/dashboard/upgrade'}
+                  sx={{
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'stretch',
                     justifyContent: 'flex-start',
                   }}
                 >
-                  <CardContent 
-                    sx={{ 
-                      p: 4, 
-                      textAlign: 'center', 
-                      display: 'flex', 
-                      flexDirection: 'column', 
+                  <CardContent
+                    sx={{
+                      p: 4,
+                      textAlign: 'center',
+                      display: 'flex',
+                      flexDirection: 'column',
                       alignItems: 'center',
                       flexGrow: 1
                     }}
                   >
-                    <Box 
-                      sx={{ 
-                        mb: 2, 
-                        p: 2, 
-                        borderRadius: '50%', 
-                        bgcolor: isAllowed 
+                    <Box
+                      sx={{
+                        mb: 2,
+                        p: 2,
+                        borderRadius: '50%',
+                        bgcolor: isAllowed
                           ? (theme.palette.mode === 'dark' ? 'primary.dark' : 'primary.light')
                           : 'grey.300',
                         color: 'white',
@@ -262,46 +269,46 @@ const HomePage = () => {
                     >
                       {isAllowed ? React.cloneElement(option.icon, { color: 'inherit' }) : <LockIcon fontSize="large" />}
                     </Box>
-                    
-                    <Typography 
-                      gutterBottom 
-                      variant="h6" 
-                      component="div" 
+
+                    <Typography
+                      gutterBottom
+                      variant="h6"
+                      component="div"
                       sx={{ fontWeight: 'bold', color: 'text.primary' }}
                     >
                       {option.title}
                     </Typography>
-                    
+
                     <Typography variant="body2" color="text.secondary" mb={2}>
                       {option.description}
                     </Typography>
 
                     {!isAllowed && planIsActive && (
-                      <Chip 
-                        label="Upgrade Plan" 
-                        size="small" 
-                        color="secondary" 
-                        variant="filled" 
+                      <Chip
+                        label="Upgrade Plan"
+                        size="small"
+                        color="secondary"
+                        variant="filled"
                         clickable
                         sx={{ mt: 'auto', fontWeight: 'bold' }}
                       />
                     )}
                     {notAllowedInactive && (
-                      <Chip 
-                        label="Coming Soon" 
-                        size="small" 
+                      <Chip
+                        label="Coming Soon"
+                        size="small"
                         color="secondary"
-                        variant="filled" 
+                        variant="filled"
                         clickable
                         sx={{ mt: 'auto', fontWeight: 'bold' }}
                       />
                     )}
                     {allowedInactive && (
-                      <Chip 
-                        label="Coming Soon" 
-                        size="small" 
-                        color="secondary" 
-                        variant="filled" 
+                      <Chip
+                        label="Coming Soon"
+                        size="small"
+                        color="secondary"
+                        variant="filled"
                         clickable
                         sx={{ mt: 'auto', fontWeight: 'bold' }}
                       />

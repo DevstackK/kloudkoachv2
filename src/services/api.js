@@ -48,6 +48,7 @@ export const subscriptionService = {
 export const resumeService = {
   getResume: () => api.get('/resume'),
   getAllResumes: () => api.get('/resume/all'), // New
+  parseResume: (rawTextDescription) => api.post('/resume/builder/parse', { rawData: rawTextDescription }),
   saveResume: (data) => api.post('/resume', data),
   activateResume: (id) => api.put(`/resume/${id}/activate`), // New
   deleteResume: (id) => api.delete(`/resume/${id}`), // New (Hard Delete)
