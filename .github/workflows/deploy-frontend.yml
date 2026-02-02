@@ -18,17 +18,16 @@ jobs:
             echo "IMAGE_TAG=latest" >> $GITHUB_ENV
             echo "SERVICE_NAME=interview-app" >> $GITHUB_ENV
             echo "API_URL=https://ksatif-001-site8.atempurl.com/api" >> $GITHUB_ENV
-          else
-            if [[ $GITHUB_REF == 'refs/heads/intevue-ai-prod' ]]; then
-              echo "Environment: Intevueai-Production"
-              echo "IMAGE_TAG=intevueaiprod" >> $GITHUB_ENV
-              echo "SERVICE_NAME=interview-app-intevueaiprod" >> $GITHUB_ENV
-              echo "API_URL=https://ksatif-001-site14.ktempurl.com/api" >> $GITHUB_ENV
-            else
-              echo "Environment: Pre-Production"
-              echo "IMAGE_TAG=preprod" >> $GITHUB_ENV
-              echo "SERVICE_NAME=interview-app-preprod" >> $GITHUB_ENV
-              echo "API_URL=https://griffin26-001-site6.atempurl.com/api" >> $GITHUB_ENV
+          elif [[ $GITHUB_REF == 'refs/heads/intevue-ai-prod' ]]; then
+            echo "Environment: Intevueai-Production"
+            echo "IMAGE_TAG=intevueaiprod" >> $GITHUB_ENV
+            echo "SERVICE_NAME=interview-app-intevueaiprod" >> $GITHUB_ENV
+            echo "API_URL=https://ksatif-001-site14.ktempurl.com/api" >> $GITHUB_ENV
+          elif [[ $GITHUB_REF == 'refs/heads/pre-prod' ]]; then
+            echo "Environment: Pre-Production"
+            echo "IMAGE_TAG=preprod" >> $GITHUB_ENV
+            echo "SERVICE_NAME=interview-app-preprod" >> $GITHUB_ENV
+            echo "API_URL=https://griffin26-001-site6.atempurl.com/api" >> $GITHUB_ENV
           fi
 
       - name: Execute Remote SSH Commands
