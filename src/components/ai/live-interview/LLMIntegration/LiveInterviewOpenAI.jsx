@@ -196,11 +196,11 @@ const LiveInterviewOpenAI = forwardRef(({
       }
 
       // D. Setup Audio Output
-      newPC.ontrack = (e) => {
-        // const audioEl = new Audio();
-        // audioEl.srcObject = e.streams[0];
-        // audioEl.play().catch(e => console.error("Audio play error", e));
-      };
+      // newPC.ontrack = (e) => {
+      //   // const audioEl = new Audio();
+      //   // audioEl.srcObject = e.streams[0];
+      //   // audioEl.play().catch(e => console.error("Audio play error", e));
+      // };
 
       // E. Data Channel & Events
       const newDataChannel = newPC.createDataChannel("oai-events", { ordered: true });
