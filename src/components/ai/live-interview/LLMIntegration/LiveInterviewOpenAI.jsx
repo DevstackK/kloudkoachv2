@@ -197,9 +197,9 @@ const LiveInterviewOpenAI = forwardRef(({
 
       // D. Setup Audio Output
       newPC.ontrack = (e) => {
-        const audioEl = new Audio();
-        audioEl.srcObject = e.streams[0];
-        audioEl.play().catch(e => console.error("Audio play error", e));
+        // const audioEl = new Audio();
+        // audioEl.srcObject = e.streams[0];
+        // audioEl.play().catch(e => console.error("Audio play error", e));
       };
 
       // E. Data Channel & Events
