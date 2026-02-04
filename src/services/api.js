@@ -43,6 +43,7 @@ export const subscriptionService = {
       usedAmount,
       referenceId
     }),
+  cancelSubscription: () => api.post('/Subscription/cancel'),
 };
 
 export const resumeService = {
