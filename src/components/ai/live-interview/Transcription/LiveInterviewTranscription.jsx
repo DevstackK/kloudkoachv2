@@ -3,7 +3,6 @@ import {
   Box,
   List,
   ListItem,
-  ListItemText,
   Typography,
   Paper,
   Divider,
@@ -22,6 +21,21 @@ const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClea
 
   const textColor = isFullscreen ? '#fff' : 'text.primary';
 
+  // Common styles for message bubbles to ensure text wraps correctly
+  const bubbleStyles = {
+    p: 1.5,
+    maxWidth: '85%', // Slightly wider for better readability
+    boxShadow: 'none',
+    borderRadius: 2,
+    wordBreak: 'break-word',     // <--- FIX: Forces text to break if it hits the edge
+    overflowWrap: 'break-word',  // <--- FIX: Ensures long words wrap properly
+    '& p': { margin: 0 },        // <--- FIX: Removes default markdown paragraph margins
+    '& pre': {                   // <--- FIX: Handles code blocks if any appear
+      whiteSpace: 'pre-wrap',
+      overflowX: 'auto'
+    }
+  };
+
   return (
     <Box
       className="transcription-container"
@@ -29,22 +43,20 @@ const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClea
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        color: textColor, // Apply text color
-        // Remove fixed height from CSS, let parent Paper control it
+        color: textColor,
       }}
     >
-      <Box className="transcription-header" sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          p: 2, pb: 1,
-          // 3. Conditional border
-          borderBottom: isFullscreen ? '1px solid rgba(255,255,255,0.2)' : '1px solid #ddd',
-        }}>
+      <Box className="transcription-header" sx={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        p: 2, pb: 1,
+        borderBottom: isFullscreen ? '1px solid rgba(255,255,255,0.2)' : '1px solid #ddd',
+      }}>
         <Typography variant="h6">Interview Transcript</Typography>
         <Button
           variant="outlined"
-          color={isFullscreen ? "secondary" : "error"} // Use secondary color in FS
+          color={isFullscreen ? "secondary" : "error"}
           startIcon={<DeleteIcon />}
           onClick={handleClearHistory}
           disabled={chatHistory.length === 0}
@@ -61,22 +73,18 @@ const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClea
       >
         {chatHistory.map((entry, index) => (
           <React.Fragment key={index}>
-            <ListItem>
+            <ListItem sx={{ px: 0 }}>
               <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-start' }}>
                 <Paper
-                  elevation={0} // No elevation for bubbles
+                  elevation={0}
                   sx={{
-                    p: 1.5,
-                    maxWidth: '80%',
-                    // 4. Conditional background
+                    ...bubbleStyles,
                     bgcolor: isFullscreen ? 'rgba(0,0,0,0.35)' : (theme) =>
                       theme.palette.mode === 'dark' ? 'grey.800' : 'grey.200',
                     color: isFullscreen ? '#fff' : 'text.primary',
-                    boxShadow: 'none',
-                    borderRadius: 2
                   }}
                 >
-                  <Typography variant="caption" color={isFullscreen ? "inherit" : "text.secondary"}>
+                  <Typography variant="caption" display="block" color={isFullscreen ? "inherit" : "text.secondary"} sx={{ mb: 0.5 }}>
                     Interviewer
                   </Typography>
                   <ReactMarkdown>{entry.question}</ReactMarkdown>
@@ -84,21 +92,19 @@ const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClea
               </Box>
             </ListItem>
 
-            <ListItem>
+            <ListItem sx={{ px: 0 }}>
               <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}>
                 <Paper
-                  elevation={0} // No elevation
+                  elevation={0}
                   sx={{
-                    p: 1.5,
-                    maxWidth: '80%',
-                    // 4. Conditional background
-                    bgcolor: isFullscreen ? 'rgba(152, 170, 255, 0.7)' : 'primary.main', // Semi-transparent purple
+                    ...bubbleStyles,
+                    bgcolor: isFullscreen ? 'rgba(152, 170, 255, 0.7)' : 'primary.main',
                     color: isFullscreen ? '#fff' : 'primary.contrastText',
-                    boxShadow: 'none',
-                    borderRadius: 2
                   }}
                 >
-                  <Typography variant="caption">Your Answer (AI)</Typography>
+                  <Typography variant="caption" display="block" sx={{ opacity: 0.8, mb: 0.5 }}>
+                    Your Answer (AI)
+                  </Typography>
                   <ReactMarkdown>{entry.answer}</ReactMarkdown>
                 </Paper>
               </Box>
@@ -107,19 +113,18 @@ const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClea
         ))}
 
         {question && (
-          <ListItem>
+          <ListItem sx={{ px: 0 }}>
             <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-start' }}>
               <Paper
                 elevation={0}
                 sx={{
-                  p: 1.5, maxWidth: '80%',
+                  ...bubbleStyles,
                   bgcolor: isFullscreen ? 'rgba(0,0,0,0.35)' : (theme) =>
                     theme.palette.mode === 'dark' ? 'grey.800' : 'grey.200',
                   color: isFullscreen ? '#fff' : 'text.primary',
-                  boxShadow: 'none', borderRadius: 2
                 }}
               >
-                <Typography variant="caption" color={isFullscreen ? "inherit" : "text.secondary"}>
+                <Typography variant="caption" display="block" color={isFullscreen ? "inherit" : "text.secondary"} sx={{ mb: 0.5 }}>
                   Interviewer (typing...)
                 </Typography>
                 <ReactMarkdown>{question}</ReactMarkdown>
@@ -128,19 +133,20 @@ const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClea
           </ListItem>
         )}
         {answers && (
-          <ListItem>
+          <ListItem sx={{ px: 0 }}>
             <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}>
               <Paper
                 elevation={0}
                 sx={{
-                  p: 1.5, maxWidth: '80%',
+                  ...bubbleStyles,
                   bgcolor: isFullscreen ? 'rgba(152, 170, 255, 0.7)' : 'primary.main',
                   color: isFullscreen ? '#fff' : 'primary.contrastText',
                   opacity: isFullscreen ? 0.9 : 0.7,
-                  boxShadow: 'none', borderRadius: 2
                 }}
               >
-                <Typography variant="caption">Your Answer (in progress...)</Typography>
+                <Typography variant="caption" display="block" sx={{ opacity: 0.8, mb: 0.5 }}>
+                  Your Answer (in progress...)
+                </Typography>
                 <ReactMarkdown>{answers}</ReactMarkdown>
               </Paper>
             </Box>
