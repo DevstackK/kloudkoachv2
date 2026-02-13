@@ -63,6 +63,12 @@ const UpgradePlanPage = () => {
     const targetPlanName = plan.name?.toLowerCase() || '';
     const isPaidUser = currentPlanName !== 'free' && currentPlanName !== '';
 
+    // FIX: If the subscription is "incomplete", clicking the plan card initiates the checkout/invoice payment
+    if (user?.status === 'incomplete' && currentPlanName === targetPlanName) {
+      initiateCheckout(plan.subscriptionPlanId);
+      return;
+    }
+
     setSelectedPlan(plan);
 
     // --- CRITICAL DOWNGRADE CHECK ---
@@ -84,6 +90,7 @@ const UpgradePlanPage = () => {
     try {
       const response = await subscriptionService.createCheckoutSession(planId);
       if (response.data.success && response.data.data) {
+        // This URL will now be the Hosted Invoice URL if the sub is incomplete
         window.location.href = response.data.data;
       } else {
         setError("Failed to initiate secure checkout.");
@@ -111,7 +118,6 @@ const UpgradePlanPage = () => {
       }
 
       if (response.data.success) {
-        // refreshUsage now internally syncs the user state in AuthContext
         await refreshUsage();
         await refreshProfile();
         navigate(`/dashboard?${isDowngradeFlow ? 'downgrade' : 'upgrade'}=success`);
@@ -141,10 +147,8 @@ const UpgradePlanPage = () => {
 
   if (loading) return <Box p={5} textAlign="center"><CircularProgress /></Box>;
 
-  // Data from your specific usage endpoint response
   const pendingPlanName = usage?.pendingDowngradePlanName;
   const downgradeDate = usage?.downgradeEffectiveDate;
-  // QUICK FIX: If a downgrade is already effective in the future, lock other downgrades
   const isDowngradeAlreadyScheduled = !!downgradeDate;
 
   return (
@@ -152,6 +156,31 @@ const UpgradePlanPage = () => {
       <Typography variant="h4" component="h1" align="center" fontWeight="bold" gutterBottom>
         Subscription Plans
       </Typography>
+
+      {/* PAYMENT REQUIRED BANNER FOR INCOMPLETE STATUS */}
+      {user?.status === 'incomplete' && (
+        <Alert
+          severity="error"
+          variant="filled"
+          icon={<WarningAmber />}
+          sx={{ mb: 4, borderRadius: 2, maxWidth: 800, mx: 'auto', fontWeight: 'bold' }}
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              variant="outlined"
+              onClick={() => {
+                const currentPlan = plans.find(p => p.name?.toLowerCase() === user?.planName?.toLowerCase());
+                if (currentPlan) initiateCheckout(currentPlan.subscriptionPlanId);
+              }}
+            >
+              PAY NOW
+            </Button>
+          }
+        >
+          Payment Required: Your transition to the {user?.planName} Plan is pending. Please complete your payment to activate features.
+        </Alert>
+      )}
 
       {downgradeDate && (
         <Alert severity="info" icon={<InfoOutlinedIcon />} sx={{ mb: 4, borderRadius: 2, maxWidth: 800, mx: 'auto' }}>
@@ -177,10 +206,10 @@ const UpgradePlanPage = () => {
 
           // BUTTON DISABLE LOGIC
           // Disable if: 
-          // 1. Current plan
+          // 1. Current plan (UNLESS status is incomplete - then we allow clicking to "Pay Now")
           // 2. Global processing is happening
-          // 3. A downgrade is already scheduled AND this specific card is a downgrade target (prevents double downgrade)
-          const disableAction = isCurrent || isProcessing || (isDowngradeAlreadyScheduled && isDowngrade);
+          // 3. A downgrade is already scheduled AND this specific card is a downgrade target
+          const disableAction = (isCurrent && user?.status !== 'incomplete') || isProcessing || (isDowngradeAlreadyScheduled && isDowngrade);
 
           return (
             <Grid item xs={12} md={4} key={plan.subscriptionPlanId}>
@@ -199,7 +228,9 @@ const UpgradePlanPage = () => {
                 {isCurrent && (
                   <Box sx={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', color: '#7b1fa2' }}>
                     <Stars fontSize="small" />
-                    <Typography variant="caption" fontWeight="bold" ml={0.5}>CURRENT</Typography>
+                    <Typography variant="caption" fontWeight="bold" ml={0.5}>
+                      {user?.status === 'incomplete' ? 'PENDING' : 'CURRENT'}
+                    </Typography>
                   </Box>
                 )}
 
@@ -242,25 +273,20 @@ const UpgradePlanPage = () => {
                     <Button
                       fullWidth
                       variant={isCurrent ? "outlined" : "contained"}
-                      color={isDowngrade ? "warning" : "primary"}
+                      color={isCurrent && user?.status === 'incomplete' ? "error" : (isDowngrade ? "warning" : "primary")}
                       size="large"
                       disabled={disableAction}
                       onClick={() => handleAction(plan)}
                       startIcon={isProcessing ? <CircularProgress size={20} color="inherit" /> :
-                        (isCurrent ? <Stars /> : isTargetOfDowngrade ? <History /> : isDowngrade ? <ArrowDownward /> : <Upgrade />)}
+                        (isCurrent ? (user?.status === 'incomplete' ? <Payment /> : <Stars />) : isTargetOfDowngrade ? <History /> : isDowngrade ? <ArrowDownward /> : <Upgrade />)}
                       sx={{ borderRadius: 8, py: 1.5 }}
                     >
                       {isCurrent
-                        ? "Active Plan"
+                        ? (user?.status === 'incomplete' ? "Pay Now" : "Active Plan")
                         : (isDowngradeAlreadyScheduled && isDowngrade)
                           ? "Downgrade Pending"
                           : isDowngrade ? "Downgrade" : "Upgrade"}
                     </Button>
-                  )}
-                  {isDowngradeAlreadyScheduled && isDowngrade && !isCurrent && (
-                    <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block', textAlign: 'center' }}>
-                      Cancel current scheduled change to select this plan.
-                    </Typography>
                   )}
                 </Box>
               </Card>
@@ -279,7 +305,6 @@ const UpgradePlanPage = () => {
           <Typography variant="body1" gutterBottom>
             You are switching to the <strong>{selectedPlan?.name} Plan</strong>.
           </Typography>
-
           {isDowngradeFlow ? (
             <Box sx={{ mt: 2, p: 2, bgcolor: 'warning.light', borderRadius: 2, color: 'warning.dark' }}>
               <Typography variant="body2" fontWeight="bold">Downgrade Notice:</Typography>
