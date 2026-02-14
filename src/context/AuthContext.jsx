@@ -26,7 +26,17 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await subscriptionService.getUsageSummary();
       if (response.data.success) {
-        setUsage(response.data.data);
+        const usageData = response.data.data;
+        setUsage(usageData);
+
+        // QUICK FIX: Sync the user state with the latest planName from usage
+        if (usageData.planName) {
+          updateUser({
+            planName: usageData.planName,
+            // If usage contains a status, sync that too
+            status: usageData.subscriptionStatus
+          });
+        }
       }
     } catch (error) {
       console.error("Failed to fetch usage:", error);

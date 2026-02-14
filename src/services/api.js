@@ -43,6 +43,11 @@ export const subscriptionService = {
       usedAmount,
       referenceId
     }),
+  cancelSubscription: () => api.post('/Subscription/cancel'),
+  previewUpgrade: (targetPlanId) => api.post('/Subscription/upgrade/preview', { targetPlanId }),
+  executeUpgrade: (targetPlanId) => api.post('/Subscription/upgrade/execute', { targetPlanId }),
+  executeDowngrade: (targetPlanId, immediate = false) => api.post('/Subscription/downgrade', { targetPlanId, immediate }),
+  cancelScheduledDowngrade: () => api.post('/Subscription/cancel-scheduled-downgrade'),
 };
 
 export const resumeService = {
