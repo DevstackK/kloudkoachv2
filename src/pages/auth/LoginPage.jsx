@@ -21,11 +21,26 @@ const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  // Validation Logic
+  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const validatePassword = (pw) => /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d!@#$%^&*]{8,}$/.test(pw);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // Pre-submission validation check
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (!validatePassword(password)) {
+      setError('Invalid password format.');
+      return;
+    }
+
     setIsLoading(true);
-    
+
     try {
       const success = await login(email, password);
       if (success) navigate('/dashboard');
@@ -63,6 +78,8 @@ const LoginPage = () => {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           disabled={isLoading}
+          error={email !== '' && !validateEmail(email)}
+          helperText={email !== '' && !validateEmail(email) ? "Enter a valid email address" : ""}
           sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
         />
         <TextField
@@ -77,35 +94,37 @@ const LoginPage = () => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           disabled={isLoading}
+          error={password !== '' && !validatePassword(password)}
+          helperText={password !== '' && !validatePassword(password) ? "Password must contain at least 8 characters, 1 letter, and 1 number" : ""}
           sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
         />
-        
+
         <Box sx={{ textAlign: 'right', mt: 1, mb: 2 }}>
-            <Link 
-              component={RouterLink}   // Change 'href' to RouterLink
-              to="/forgot-password"    // Add the path
-              variant="body2" 
-              sx={{ textDecoration: 'none', fontWeight: 500, cursor: 'pointer' }}
-            >
-                Forgot Password?
-            </Link>
+          <Link
+            component={RouterLink}
+            to="/forgot-password"
+            variant="body2"
+            sx={{ textDecoration: 'none', fontWeight: 500, cursor: 'pointer' }}
+          >
+            Forgot Password?
+          </Link>
         </Box>
 
-        <Button 
-          type="submit" 
-          fullWidth 
-          variant="contained" 
+        <Button
+          type="submit"
+          fullWidth
+          variant="contained"
           size="large"
-          sx={{ 
-            mt: 2, 
-            mb: 3, 
-            py: 1.5, 
-            borderRadius: '12px', 
+          sx={{
+            mt: 2,
+            mb: 3,
+            py: 1.5,
+            borderRadius: '12px',
             fontSize: '1rem',
             background: 'linear-gradient(90deg, #7b1fa2 0%, #ad1457 100%)',
             boxShadow: '0 4px 12px rgba(123, 31, 162, 0.3)'
-          }} 
-          disabled={isLoading}
+          }}
+          disabled={isLoading || !email || !password || !validateEmail(email) || !validatePassword(password)}
         >
           {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
         </Button>
