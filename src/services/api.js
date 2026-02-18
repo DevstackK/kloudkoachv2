@@ -44,6 +44,7 @@ export const subscriptionService = {
       referenceId
     }),
   cancelSubscription: () => api.post('/Subscription/cancel'),
+  reactivateSubscription: () => api.post('/Subscription/reactivate'),
   previewUpgrade: (targetPlanId) => api.post('/Subscription/upgrade/preview', { targetPlanId }),
   executeUpgrade: (targetPlanId) => api.post('/Subscription/upgrade/execute', { targetPlanId }),
   executeDowngrade: (targetPlanId, immediate = false) => api.post('/Subscription/downgrade', { targetPlanId, immediate }),
