@@ -58,8 +58,30 @@ const UserProfile = () => {
     setOpenCancelDialog(true);
   };
 
-  const handleReactivateClick = () => {
-    navigate('/dashboard/upgrade');
+  const handleReactivateClick = async () => {
+    setIsProcessing(true);
+
+    try {
+      const response = await subscriptionService.reactivateSubscription();
+
+      if (response.data && response.data.success) {
+        // Refresh profile and usage to flip the button back to "Cancel"
+        await refreshProfile();
+        await refreshUsage();
+
+        setSuccessMessage("Your subscription has been successfully reactivated! Auto-renewal is now back on.");
+        setOpenSuccessDialog(true);
+      } else {
+        setSuccessMessage(response.data?.message || "Failed to reactivate subscription.");
+        setOpenSuccessDialog(true);
+      }
+    } catch (error) {
+      console.error("Reactivation error", error);
+      setSuccessMessage("An error occurred while reactivating your subscription. Please try again later.");
+      setOpenSuccessDialog(true);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleCloseCancelDialog = () => {
