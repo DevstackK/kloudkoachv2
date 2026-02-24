@@ -28,6 +28,7 @@ const UpgradePlanPage = () => {
 
   useEffect(() => {
     const checkStatus = async () => {
+      // 1. Handle successful payment (existing logic)
       if (searchParams.get('success') === 'true' || searchParams.get('upgrade') === 'success') {
         setLoading(true);
         try {
@@ -38,7 +39,13 @@ const UpgradePlanPage = () => {
           console.error("Post-action refresh failed", e);
           setLoading(false);
         }
-      } else {
+      }
+      // 2. Handle cancelled/failed payment (new)
+      else if (searchParams.get('payment') === 'cancelled' || searchParams.get('payment') === 'failed') {
+        navigate('/dashboard', { replace: true });
+      }
+      // 3. No payment status → fetch plans as usual
+      else {
         fetchPlans();
       }
     };
