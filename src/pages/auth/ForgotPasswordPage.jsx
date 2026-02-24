@@ -13,7 +13,7 @@ import {
   StepLabel
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import AuthLayout from './AuthLayout'; 
+import AuthLayout from './AuthLayout';
 import { authService } from '../../services/api';
 
 const steps = ['Email', 'Reset Password'];
@@ -30,6 +30,7 @@ const ForgotPasswordPage = () => {
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const validatePassword = (pw) => /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d!@#$%^&*]{8,}$/.test(pw);
 
   // STEP 1: Send OTP
   const handleSendOtp = async (e) => {
@@ -62,7 +63,7 @@ const ForgotPasswordPage = () => {
       setError("Passwords do not match.");
       return;
     }
-    
+
     if (newPassword.length < 6) {
       setError("Password must be at least 6 characters.");
       return;
@@ -74,7 +75,7 @@ const ForgotPasswordPage = () => {
       // API expects: { email, token, newPassword }
       // "Token" in the backend DTO maps to the OTP code here
       const response = await authService.resetPassword(email, otp, newPassword);
-      
+
       if (response.data.success) {
         setSuccessMsg("Password reset successfully! Redirecting to login...");
         setTimeout(() => {
@@ -93,9 +94,9 @@ const ForgotPasswordPage = () => {
   return (
     <AuthLayout title="Recover your account">
       <Box sx={{ width: '100%', mb: 4 }}>
-        <Button 
-          startIcon={<ArrowBackIcon />} 
-          component={RouterLink} 
+        <Button
+          startIcon={<ArrowBackIcon />}
+          component={RouterLink}
           to="/login"
           sx={{ mb: 2, pl: 0 }}
         >
@@ -106,8 +107,8 @@ const ForgotPasswordPage = () => {
           Forgot Password
         </Typography>
         <Typography variant="body1" color="text.secondary" mb={3}>
-          {activeStep === 0 
-            ? "Enter your email address to receive a verification code." 
+          {activeStep === 0
+            ? "Enter your email address to receive a verification code."
             : "Enter the code sent to your email and your new password."}
         </Typography>
 
@@ -148,7 +149,7 @@ const ForgotPasswordPage = () => {
         ) : (
           /* --- STEP 2 FORM --- */
           <Box component="form" onSubmit={handleResetPassword} noValidate>
-             <TextField
+            <TextField
               margin="normal"
               required
               fullWidth
@@ -157,7 +158,7 @@ const ForgotPasswordPage = () => {
               name="otp"
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
-              inputProps={{ style: { letterSpacing: 4 } }} 
+              inputProps={{ style: { letterSpacing: 4 } }}
             />
             <TextField
               margin="normal"
@@ -169,6 +170,8 @@ const ForgotPasswordPage = () => {
               id="newPassword"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              error={newPassword !== '' && !validatePassword(newPassword)}
+              helperText={newPassword !== '' && !validatePassword(newPassword) ? "Password must contain at least 8 characters, 1 letter, and 1 number" : ""}
             />
             <TextField
               margin="normal"
@@ -180,6 +183,8 @@ const ForgotPasswordPage = () => {
               id="confirmPassword"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              error={confirmPassword !== '' && !validatePassword(confirmPassword)}
+              helperText={confirmPassword !== '' && !validatePassword(confirmPassword) ? "Password must contain at least 8 characters, 1 letter, and 1 number" : ""}
             />
             <Button
               type="submit"

@@ -148,7 +148,7 @@ const PaymentPage = () => {
                   fullWidth required type="password" label="Password"
                   value={accountData.password}
                   error={accountData.password.length > 0 && !validatePassword(accountData.password)}
-                  helperText="Min. 8 characters, 1 letter, 1 number"
+                  helperText={accountData.password.length > 0 && !validatePassword(accountData.password) ? "Password must contain at least 8 characters, 1 letter, and 1 number" : ""}
                   onChange={e => setAccountData({ ...accountData, password: e.target.value })}
                 />
               </Grid>

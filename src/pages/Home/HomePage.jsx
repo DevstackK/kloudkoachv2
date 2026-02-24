@@ -39,7 +39,10 @@ const HomePage = () => {
   // Handle Payment Success Logic
   useEffect(() => {
     const handlePaymentSuccess = async () => {
-      if (searchParams.get('payment') === 'success') {
+      if (searchParams.get('payment') === 'cancelled' || searchParams.get('payment') === 'failed') {
+        navigate('/dashboard', { replace: true });
+      }
+      else if (searchParams.get('payment') === 'success') {
         setIsProcessingPayment(true); // <--- Start Loading
 
         try {

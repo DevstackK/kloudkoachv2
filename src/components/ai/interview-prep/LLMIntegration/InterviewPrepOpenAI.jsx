@@ -1,11 +1,17 @@
-import React, { useState, useRef, forwardRef, useImperativeHandle, useEffect } from "react";
-import { Box, Button, CircularProgress, useTheme, Typography, Paper, Fade } from "@mui/material";
+import React, { useState, useRef, forwardRef, useImperativeHandle, useEffect, useCallback } from "react";
+import {
+  Box, Button, CircularProgress, useTheme, Typography,
+  Paper, Fade, Dialog, DialogTitle, DialogContent, IconButton,
+  Backdrop // <-- added for progress overlay
+} from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import "./InterviewPrepOpenAI.css";
 import { useSession } from '../../../../context/SessionContext';
 import { useInterviewSetup } from '../../../../context/InterviewSetupContext';
 import { useAuth } from '../../../../context/AuthContext';
-import api, { subscriptionService } from "../../../../services/api";
+import api, { subscriptionService, analyticsService } from "../../../../services/api";
 import SessionTimer from "../../../common/SessionTimer";
+import SessionAnalytics from "../../../dashboard/SessionAnalytics"; // adjust path if needed
 
 const RTC_CONFIGURATION = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -36,6 +42,14 @@ const InterviewPrepOpenAI = forwardRef(({
   const [dbSessionId, setDbSessionId] = useState(null);
   const [startTime, setStartTime] = useState(null);
   const [showWelcome, setShowWelcome] = useState(true);
+
+  // --- State for analytics modal ---
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [analyticsSessionId, setAnalyticsSessionId] = useState(null);
+
+  // --- State for progress overlay (while generating analytics) ---
+  const [progressOpen, setProgressOpen] = useState(false);
+  const [progressMessage, setProgressMessage] = useState("");
 
   // Refs for WebRTC Connection Objects
   const pcRef = useRef(null);
@@ -235,21 +249,52 @@ const InterviewPrepOpenAI = forwardRef(({
     }
   };
 
+  // --- Polling function to wait for analytics to be ready ---
+  const pollAnalytics = useCallback(async (sessionId) => {
+    const maxAttempts = 80; // 4 minutes with 3s interval
+    const intervalMs = 3000;
+    let attempts = 0;
+
+    setProgressMessage("Generating personalized analytics... This may take 2-4 minutes depending on interview length.");
+
+    while (attempts < maxAttempts) {
+      try {
+        const response = await analyticsService.getSessionAnalytics(sessionId);
+        if (response.data.success && response.data.data && response.data.data.length > 0) {
+          // Data ready
+          setProgressOpen(false);
+          setAnalyticsSessionId(sessionId);
+          setAnalyticsOpen(true);
+          return;
+        }
+      } catch (err) {
+        // Ignore errors, continue polling
+        console.log("Polling error, retrying...", err);
+      }
+      attempts++;
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+
+    // Timeout – show dialog anyway with a warning
+    setProgressOpen(false);
+    setAnalyticsSessionId(sessionId);
+    setAnalyticsOpen(true);
+    alert("Analytics generation is taking longer than expected. You can view them later in your history.");
+  }, []);
+
+  // --- MODIFIED: disconnectWebSocket now shows progress and polls for analytics ---
   const disconnectWebSocket = async () => {
+    // Store sessionId before cleanup
+    const sessionIdToAnalyze = dbSessionId;
+
+    // Close WebRTC and stop tracks
     if (pcRef.current) pcRef.current.close();
     if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
 
     if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
     if (audioContextRef.current) audioContextRef.current.close();
 
-    if (dbSessionId) {
-      try {
-        const transcriptPayload = chatHistory.map(e => ({ question: e.answer, answer: e.question }));
-        subscriptionService.stopSession(dbSessionId, 0, transcriptPayload);
-        if (refreshUsage) refreshUsage();
-      } catch (e) { console.error(e); }
-    }
-
+    // Reset component state immediately (UI goes back to start)
     setConnectStatus("notConnect");
     setDbSessionId(null);
     setAnswers("");
@@ -258,6 +303,25 @@ const InterviewPrepOpenAI = forwardRef(({
     setActiveStopSession(null);
     setShowWelcome(true);
     setIsReconnecting(false);
+
+    if (sessionIdToAnalyze) {
+      try {
+        setProgressOpen(true);
+        const transcriptPayload = chatHistory.map(e => ({ question: e.answer, answer: e.question }));
+        await subscriptionService.stopSession(sessionIdToAnalyze, 0, transcriptPayload);
+        if (refreshUsage) refreshUsage();
+
+        // Show progress overlay and start polling for analytics
+        await pollAnalytics(sessionIdToAnalyze);
+
+      } catch (e) {
+        console.error("Failed to stop session", e);
+        // Still attempt to show analytics (maybe from cache)
+        setProgressOpen(false);
+        setAnalyticsSessionId(sessionIdToAnalyze);
+        setAnalyticsOpen(true);
+      }
+    }
   };
 
   // --- 6. EVENT HANDLERS ---
@@ -280,14 +344,14 @@ const InterviewPrepOpenAI = forwardRef(({
   const handleOpenAIEvent = (event) => {
     const message = JSON.parse(event.data);
     const { type } = message;
-    // console.log("Message type: ", message);
+    console.log("Message: ", message);
     if (type === 'error' && message.error?.code === 'session_expired') {
       performSilentReconnect();
       return;
     }
-
     switch (type) {
       case "response.output_audio_transcript.delta":
+        console.log("Delta: ", message);
         setAnswers(prev => {
           const updated = prev + (message.delta || "");
           answersRef.current = updated;
@@ -298,6 +362,7 @@ const InterviewPrepOpenAI = forwardRef(({
         handleDone();
         break;
       case "conversation.item.input_audio_transcription.completed":
+        console.log("Completed: ", message);
         const transcript = message.transcript || "";
         setQuestion(transcript);
         questionRef.current = transcript;
@@ -411,6 +476,42 @@ const InterviewPrepOpenAI = forwardRef(({
           {connectStatus === "connecting" ? <CircularProgress size={20} color="inherit" /> : refreshStatusButtonUI()}
         </Button>
       </Box>
+
+      {/* Progress Overlay (full screen) */}
+      <Backdrop
+        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1, flexDirection: 'column', gap: 2 }}
+        open={progressOpen}
+      >
+        <CircularProgress color="inherit" size={60} />
+        <Typography variant="h6" align="center" sx={{ maxWidth: 400, px: 2 }}>
+          {progressMessage}
+        </Typography>
+      </Backdrop>
+
+      {/* Analytics Modal */}
+      <Dialog
+        open={analyticsOpen}
+        onClose={() => setAnalyticsOpen(false)}
+        maxWidth="md"
+        fullWidth
+        scroll="paper"
+      >
+        <DialogTitle>
+          Session Results
+          <IconButton
+            aria-label="close"
+            onClick={() => setAnalyticsOpen(false)}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {analyticsSessionId && (
+            <SessionAnalytics sessionIdProp={analyticsSessionId} onClose={() => setAnalyticsOpen(false)} />
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 });

@@ -14,24 +14,35 @@ import {
   CircularProgress,
   Alert,
   Stack,
-  useTheme
+  useTheme,
+  IconButton // <-- added for modal close button (optional)
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CloseIcon from '@mui/icons-material/Close'; // <-- for modal close
 import LightbulbIcon from '@mui/icons-material/Lightbulb';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningIcon from '@mui/icons-material/Warning';
 import { analyticsService } from '../../services/api';
 
-const SessionAnalytics = () => {
-  const { sessionId } = useParams(); // Get ID from URL
+// Accept optional props for modal usage
+const SessionAnalytics = ({ sessionIdProp, onClose }) => {
+  // Use prop if provided, otherwise fallback to URL param
+  const paramsSessionId = useParams().sessionId;
+  const sessionId = sessionIdProp || paramsSessionId;
+
   const navigate = useNavigate();
   const theme = useTheme();
+  const location = useLocation();
 
   const [loading, setLoading] = useState(true);
   const [interactions, setInteractions] = useState([]);
   const [error, setError] = useState('');
-  const location = useLocation();
+
+  // Determine if we're in modal mode
+  const isModal = !!onClose;
+
+  // Back navigation path (only used in full page mode)
   const backPath = location.state?.from || '/dashboard/history';
   const backLabel = backPath.includes('profile') ? 'Back to Profile' : 'Back to History';
 
@@ -72,24 +83,31 @@ const SessionAnalytics = () => {
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
-      {/* Back Button */}
-      <Button 
-        startIcon={<ArrowBackIcon />} 
-        onClick={() => navigate(backPath)}
-        sx={{ mb: 3 }}
-      >
-        {backLabel}
-      </Button>
+      {/* Back / Close button – conditional */}
+      {!isModal ? (
+        <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate(backPath)}
+          sx={{ mb: 3 }}
+        >
+          {backLabel}
+        </Button>
+      ) : (
+        // In modal, we can show a close button in the top right (optional – dialog will have its own)
+        // Or we can leave it out; the dialog's close button is enough.
+        // For consistency, we don't render anything here.
+        null
+      )}
 
-      {/* 1. SCORECARD HEADER */}
-      <Paper 
-        elevation={0} 
-        sx={{ 
-          p: 3, 
-          mb: 4, 
+      {/* Scorecard Header (same as before) */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 3,
+          mb: 4,
           borderRadius: 3,
-          background: theme.palette.mode === 'dark' 
-            ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' 
+          background: theme.palette.mode === 'dark'
+            ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)'
             : 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
           border: '1px solid',
           borderColor: 'divider',
@@ -106,14 +124,14 @@ const SessionAnalytics = () => {
             {interactions.length} Questions Analyzed
           </Typography>
         </Box>
-        
+
         <Box textAlign="center">
           <Typography variant="caption" display="block" color="text.secondary" fontWeight="bold">
             AVERAGE SCORE
           </Typography>
-          <Typography 
-            variant="h2" 
-            fontWeight="900" 
+          <Typography
+            variant="h2"
+            fontWeight="900"
             sx={{ color: theme.palette.primary.main }}
           >
             {calculateAverageScore()}
@@ -128,14 +146,14 @@ const SessionAnalytics = () => {
         <Alert severity="info">No interaction data found for this session.</Alert>
       )}
 
-      {/* 2. INTERACTIONS LIST */}
+      {/* Interactions list (unchanged) */}
       <Stack spacing={3}>
         {interactions.map((item, index) => (
-          <Paper 
-            key={item.interactionId || index} 
-            elevation={3} 
-            sx={{ 
-              overflow: 'hidden', 
+          <Paper
+            key={item.interactionId || index}
+            elevation={3}
+            sx={{
+              overflow: 'hidden',
               borderRadius: 2,
               borderLeft: '6px solid',
               borderColor: `${getRatingColor(item.rating)}.main`
@@ -147,10 +165,10 @@ const SessionAnalytics = () => {
                 <Typography variant="h6" fontWeight="600" sx={{ flexGrow: 1 }}>
                   {index + 1}. {item.questionText}
                 </Typography>
-                <Chip 
-                  label={`${item.rating}/10`} 
-                  color={getRatingColor(item.rating)} 
-                  sx={{ fontWeight: 'bold', borderRadius: 1 }} 
+                <Chip
+                  label={`${item.rating}/10`}
+                  color={getRatingColor(item.rating)}
+                  sx={{ fontWeight: 'bold', borderRadius: 1 }}
                 />
               </Box>
 
@@ -179,9 +197,9 @@ const SessionAnalytics = () => {
 
               <Divider sx={{ my: 2 }} />
 
-              {/* Optimal Answer (Hidden by default) */}
+              {/* Optimal Answer (Accordion) */}
               <Accordion elevation={0} disableGutters sx={{ '&:before': { display: 'none' }, bgcolor: 'transparent' }}>
-                <AccordionSummary 
+                <AccordionSummary
                   expandIcon={<ExpandMoreIcon />}
                   sx={{ p: 0, minHeight: 'auto', '& .MuiAccordionSummary-content': { m: 0 } }}
                 >
@@ -195,7 +213,7 @@ const SessionAnalytics = () => {
                 <AccordionDetails sx={{ px: 0, pb: 0, pt: 1 }}>
                   <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.default', borderStyle: 'dashed' }}>
                     <Typography variant="body2" sx={{ whiteSpace: 'pre-line', lineHeight: 1.6 }}>
-                        {item.suggestedAnswer}
+                      {item.suggestedAnswer}
                     </Typography>
                   </Paper>
                 </AccordionDetails>

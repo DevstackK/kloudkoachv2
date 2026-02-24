@@ -23,7 +23,6 @@ const LoginPage = () => {
 
   // Validation Logic
   const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const validatePassword = (pw) => /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d!@#$%^&*]{8,}$/.test(pw);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,11 +33,6 @@ const LoginPage = () => {
       setError('Please enter a valid email address.');
       return;
     }
-    if (!validatePassword(password)) {
-      setError('Invalid password format.');
-      return;
-    }
-
     setIsLoading(true);
 
     try {
@@ -94,8 +88,8 @@ const LoginPage = () => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           disabled={isLoading}
-          error={password !== '' && !validatePassword(password)}
-          helperText={password !== '' && !validatePassword(password) ? "Password must contain at least 8 characters, 1 letter, and 1 number" : ""}
+          // error={password !== '' && !validatePassword(password)}
+          // helperText={password !== '' && !validatePassword(password) ? "Password must contain at least 8 characters, 1 letter, and 1 number" : ""}
           sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
         />
 
@@ -124,7 +118,7 @@ const LoginPage = () => {
             background: 'linear-gradient(90deg, #7b1fa2 0%, #ad1457 100%)',
             boxShadow: '0 4px 12px rgba(123, 31, 162, 0.3)'
           }}
-          disabled={isLoading || !email || !password || !validateEmail(email) || !validatePassword(password)}
+          disabled={isLoading || !email || !password || !validateEmail(email)}
         >
           {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
         </Button>
