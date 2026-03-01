@@ -71,8 +71,8 @@ const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClea
         className="transcription-list"
         sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}
       >
-        {chatHistory.map((entry, index) => (
-          <React.Fragment key={index}>
+        {chatHistory.map((entry) => (
+          <React.Fragment key={entry.id}>
             <ListItem sx={{ px: 0 }}>
               <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-start' }}>
                 <Paper

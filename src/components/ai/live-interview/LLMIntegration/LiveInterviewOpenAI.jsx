@@ -12,7 +12,7 @@ const RTC_CONFIGURATION = {
 };
 
 // Reconnect interval in milliseconds (15 minutes to be safe within the 30m limit)
-const RECONNECT_INTERVAL_MS = 15 * 60 * 1000;
+const RECONNECT_INTERVAL_MS = 10 * 60 * 1000;
 
 const LiveInterviewOpenAI = forwardRef(({
   answers,
@@ -314,14 +314,20 @@ const LiveInterviewOpenAI = forwardRef(({
     const answerSnapshot = answersRef.current;
 
     if (questionSnapshot || answerSnapshot) {
-      setChatHistory(prev => [
-        ...prev,
-        {
-          question: questionSnapshot,
-          answer: answerSnapshot,
-          timestamp: new Date().toISOString()
-        }
-      ]);
+      setChatHistory(prev => {
+        const updated = [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            question: questionSnapshot,
+            answer: answerSnapshot,
+            timestamp: new Date().toISOString()
+          }
+        ];
+
+        // ✅ Keep only the last 25 chat bubbles
+        return updated.slice(-10);
+      });
     }
 
     setInputText('');

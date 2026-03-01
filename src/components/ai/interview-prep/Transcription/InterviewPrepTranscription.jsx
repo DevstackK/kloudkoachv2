@@ -110,8 +110,8 @@ const InterviewPrepTranscription = ({ chatHistory, question, answers, handleClea
         )}
 
         {/* Chat History */}
-        {chatHistory.map((entry, index) => (
-          <React.Fragment key={index}>
+        {chatHistory.map((entry) => (
+          <React.Fragment key={entry.id}>
             {/* User Message */}
             <ListItem sx={{ px: 0 }}>
               <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}>

@@ -329,11 +329,15 @@ const InterviewPrepOpenAI = forwardRef(({
     const q = questionRef.current;
     const a = answersRef.current;
     if (q || a) {
-      setChatHistory(prev => [...prev, {
-        question: q,
-        answer: a,
-        timestamp: new Date().toISOString()
-      }]);
+      setChatHistory(prev => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),   // ✅ ADD THIS
+          question: q,
+          answer: a,
+          timestamp: new Date().toISOString()
+        }
+      ]);
     }
     setAnswers('');
     setQuestion('');
