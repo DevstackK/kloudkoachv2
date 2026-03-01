@@ -17,14 +17,7 @@ const InterviewPrepTranscription = ({ chatHistory, question, answers, handleClea
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory.length]);
-
-  // Scroll instantly during streaming
-  useEffect(() => {
-    if (answers) {
-      endOfMessagesRef.current?.scrollIntoView({ behavior: 'auto' });
-    }
-  }, [answers]);
+  }, [chatHistory, question, answers]);
 
   // Hide welcome message once conversation starts
   useEffect(() => {

@@ -15,17 +15,9 @@ import './LiveInterviewTranscription.css';
 const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClearHistory, isFullscreen }) => {
   const endOfMessagesRef = useRef(null);
 
-  // Only scroll when a new message is finalized
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory.length]);
-
-  // Scroll instantly during streaming
-  useEffect(() => {
-    if (answers) {
-      endOfMessagesRef.current?.scrollIntoView({ behavior: 'auto' });
-    }
-  }, [answers]);
+  }, [chatHistory, question, answers]);
 
   const textColor = isFullscreen ? '#fff' : 'text.primary';
 

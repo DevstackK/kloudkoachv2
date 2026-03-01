@@ -12,7 +12,7 @@ const RTC_CONFIGURATION = {
 };
 
 // Reconnect interval in milliseconds (15 minutes to be safe within the 30m limit)
-const RECONNECT_INTERVAL_MS = 15 * 60 * 1000;
+const RECONNECT_INTERVAL_MS = 10 * 60 * 1000;
 
 const LiveInterviewOpenAI = forwardRef(({
   answers,
@@ -326,7 +326,7 @@ const LiveInterviewOpenAI = forwardRef(({
         ];
 
         // ✅ Keep only the last 25 chat bubbles
-        return updated.slice(-25);
+        return updated.slice(-10);
       });
     }
 
