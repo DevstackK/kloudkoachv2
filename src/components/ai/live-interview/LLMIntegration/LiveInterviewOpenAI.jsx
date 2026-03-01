@@ -317,6 +317,7 @@ const LiveInterviewOpenAI = forwardRef(({
       setChatHistory(prev => [
         ...prev,
         {
+          id: crypto.randomUUID(),   // ✅ ADD THIS
           question: questionSnapshot,
           answer: answerSnapshot,
           timestamp: new Date().toISOString()

@@ -15,9 +15,17 @@ import './LiveInterviewTranscription.css';
 const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClearHistory, isFullscreen }) => {
   const endOfMessagesRef = useRef(null);
 
+  // Only scroll when a new message is finalized
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory, question, answers]);
+  }, [chatHistory.length]);
+
+  // Scroll instantly during streaming
+  useEffect(() => {
+    if (answers) {
+      endOfMessagesRef.current?.scrollIntoView({ behavior: 'auto' });
+    }
+  }, [answers]);
 
   const textColor = isFullscreen ? '#fff' : 'text.primary';
 
@@ -71,8 +79,8 @@ const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClea
         className="transcription-list"
         sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}
       >
-        {chatHistory.map((entry, index) => (
-          <React.Fragment key={index}>
+        {chatHistory.map((entry) => (
+          <React.Fragment key={entry.id}>
             <ListItem sx={{ px: 0 }}>
               <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-start' }}>
                 <Paper
