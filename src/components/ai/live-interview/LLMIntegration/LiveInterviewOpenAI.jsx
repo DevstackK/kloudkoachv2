@@ -314,15 +314,20 @@ const LiveInterviewOpenAI = forwardRef(({
     const answerSnapshot = answersRef.current;
 
     if (questionSnapshot || answerSnapshot) {
-      setChatHistory(prev => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),   // ✅ ADD THIS
-          question: questionSnapshot,
-          answer: answerSnapshot,
-          timestamp: new Date().toISOString()
-        }
-      ]);
+      setChatHistory(prev => {
+        const updated = [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            question: questionSnapshot,
+            answer: answerSnapshot,
+            timestamp: new Date().toISOString()
+          }
+        ];
+
+        // ✅ Keep only the last 25 chat bubbles
+        return updated.slice(-25);
+      });
     }
 
     setInputText('');

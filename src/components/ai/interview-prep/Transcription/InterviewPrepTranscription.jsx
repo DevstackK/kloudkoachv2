@@ -17,7 +17,14 @@ const InterviewPrepTranscription = ({ chatHistory, question, answers, handleClea
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory, question, answers]);
+  }, [chatHistory.length]);
+
+  // Scroll instantly during streaming
+  useEffect(() => {
+    if (answers) {
+      endOfMessagesRef.current?.scrollIntoView({ behavior: 'auto' });
+    }
+  }, [answers]);
 
   // Hide welcome message once conversation starts
   useEffect(() => {
@@ -110,8 +117,8 @@ const InterviewPrepTranscription = ({ chatHistory, question, answers, handleClea
         )}
 
         {/* Chat History */}
-        {chatHistory.map((entry, index) => (
-          <React.Fragment key={index}>
+        {chatHistory.map((entry) => (
+          <React.Fragment key={entry.id}>
             {/* User Message */}
             <ListItem sx={{ px: 0 }}>
               <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}>
