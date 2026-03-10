@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback, useState } from 'react';
 
 // --- Configuration ---
 // Fallback: if backend doesn't provide MaxDurationMinutes, use 15 min
-const DEFAULT_RECONNECT_MS = 15 * 60 * 1000;
+const DEFAULT_RECONNECT_MS = 10 * 60 * 1000;
 
 // Exponential back-off: 2 s → 4 s → 8 s
 const MAX_RETRIES = 3;
