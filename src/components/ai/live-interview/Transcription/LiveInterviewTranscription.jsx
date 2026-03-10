@@ -12,7 +12,7 @@ import ReactMarkdown from 'react-markdown';
 import DeleteIcon from '@mui/icons-material/Delete';
 import './LiveInterviewTranscription.css';
 
-const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClearHistory, isFullscreen }) => {
+const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClearHistory, isFullscreen, turnStatus }) => {
   const endOfMessagesRef = useRef(null);
 
   useEffect(() => {
@@ -21,18 +21,43 @@ const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClea
 
   const textColor = isFullscreen ? '#fff' : 'text.primary';
 
+  // Helper to get status text based on turnStatus state
+  const getStatusText = () => {
+    if (turnStatus === "speaking") return "Interviewer is speaking...";
+    if (turnStatus === "thinking") return "AI is thinking...";
+    if (turnStatus === "responding") return "AI is typing/responding...";
+    if (question) return "Interviewer asked:";
+    if (answers) return "AI is generated answer:";
+    return "Interviewer (typing...)";
+  };
+
   // Common styles for message bubbles to ensure text wraps correctly
   const bubbleStyles = {
     p: 1.5,
     maxWidth: '85%', // Slightly wider for better readability
     boxShadow: 'none',
     borderRadius: 2,
-    wordBreak: 'break-word',     // <--- FIX: Forces text to break if it hits the edge
-    overflowWrap: 'break-word',  // <--- FIX: Ensures long words wrap properly
-    '& p': { margin: 0 },        // <--- FIX: Removes default markdown paragraph margins
-    '& pre': {                   // <--- FIX: Handles code blocks if any appear
+    wordBreak: 'break-word',
+    overflowWrap: 'break-word',
+    '& p': {
+      marginTop: 0,
+      marginBottom: '0.75em',
+      '&:last-child': { marginBottom: 0 }
+    },
+    '& ul, & ol': {
+      marginTop: 0,
+      marginBottom: '0.75em',
+      paddingLeft: '1.5em'
+    },
+    '& li': {
+      marginBottom: '0.25em'
+    },
+    '& pre': {
       whiteSpace: 'pre-wrap',
-      overflowX: 'auto'
+      overflowX: 'auto',
+      margin: 0,
+      mt: 1,
+      mb: 1
     }
   };
 
@@ -124,8 +149,8 @@ const LiveInterviewTranscription = ({ chatHistory, question, answers, handleClea
                   color: isFullscreen ? '#fff' : 'text.primary',
                 }}
               >
-                <Typography variant="caption" display="block" color={isFullscreen ? "inherit" : "text.secondary"} sx={{ mb: 0.5 }}>
-                  Interviewer (typing...)
+                <Typography variant="caption" display="block" color={isFullscreen ? "inherit" : "text.secondary"} sx={{ mb: 0.5, fontWeight: 'bold' }}>
+                  {getStatusText()}
                 </Typography>
                 <ReactMarkdown>{question}</ReactMarkdown>
               </Paper>

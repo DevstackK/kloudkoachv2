@@ -67,6 +67,11 @@ export const analyticsService = {
   getSessionHistory: () => api.get('/Analytics/history'),
 };
 
+export const realtimeService = {
+  createSession: (data) => api.post('/Realtime/session', data),
+  refreshSession: (sessionId, data) => api.post(`/Realtime/session/${sessionId}/refresh`, data),
+};
+
 export const securityService = {
   getSslStatus: () => api.get('/Security/ssl-status'),
 };

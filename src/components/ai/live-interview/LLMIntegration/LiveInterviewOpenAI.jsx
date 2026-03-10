@@ -1,18 +1,16 @@
-import React, { useState, useRef, forwardRef, useImperativeHandle, useEffect } from "react";
+import React, { useState, useRef, forwardRef, useImperativeHandle, useEffect, useCallback } from "react";
 import { Box, Button, Typography, Fade, CircularProgress } from "@mui/material";
 import "./LiveInterviewOpenAI.css";
 import { useSession } from "../../../../context/SessionContext";
 import { useInterviewSetup } from '../../../../context/InterviewSetupContext';
 import { useAuth } from "../../../../context/AuthContext";
-import api, { subscriptionService } from "../../../../services/api";
+import api, { subscriptionService, realtimeService } from "../../../../services/api";
 import SessionTimer from "../../../common/SessionTimer";
+import useRealtimeReconnect from "../../../../hooks/useRealtimeReconnect";
 
 const RTC_CONFIGURATION = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
-
-// Reconnect interval in milliseconds (15 minutes to be safe within the 30m limit)
-const RECONNECT_INTERVAL_MS = 10 * 60 * 1000;
 
 const LiveInterviewOpenAI = forwardRef(({
   answers,
@@ -23,23 +21,26 @@ const LiveInterviewOpenAI = forwardRef(({
   setChatHistory,
   formData,
   onConnectionStatusChange,
-  isFullscreen
+  isFullscreen,
+  setTurnStatus
 }, ref) => {
 
   // --- 1. HOOKS & CONTEXT ---
-  const { user, refreshUsage } = useAuth(); // FIXED: Destructured refreshUsage
+  const { user, refreshUsage } = useAuth();
   const { setActiveStopSession } = useSession();
   const { clearForm } = useInterviewSetup();
 
   // --- 2. STATE ---
   const [connectStatus, setConnectStatus] = useState("notConnect");
-  const [isReconnecting, setIsReconnecting] = useState(false);
-  const [isSharing, setIsSharing] = useState(false); // FIXED: Added missing state
+  const [isSharing, setIsSharing] = useState(false);
 
   const [dbSessionId, setDbSessionId] = useState(null);
   const [startTime, setStartTime] = useState(null);
   const [outputText, setOutputText] = useState("");
   const [inputText, setInputText] = useState("");
+
+  // Dynamic reconnect interval from backend's MaxDurationMinutes
+  const [reconnectIntervalMs, setReconnectIntervalMs] = useState(null);
 
   // --- 3. REFS ---
   // Active connection objects
@@ -49,11 +50,32 @@ const LiveInterviewOpenAI = forwardRef(({
   // Persistent Media Stream (Screen Share)
   const mediaStreamRef = useRef(null);
 
+  // Ref to access dbSessionId in reconnect without stale closures
+  const dbSessionIdRef = useRef(null);
+
+  // FIX: Preserve formData across clearForm() calls so reconnect has valid data
+  const formDataRef = useRef(formData);
+  useEffect(() => {
+    if (formData) formDataRef.current = formData;
+  }, [formData]);
+
+  // Preserve chatHistory in a ref for context injection on reconnect
+  const chatHistoryRef = useRef(chatHistory);
+  useEffect(() => {
+    chatHistoryRef.current = chatHistory;
+  }, [chatHistory]);
+
   // Data Refs for event handling
-  const questionRef = useRef(""); // FIXED: Added missing ref
+  const questionRef = useRef("");
   const answersRef = useRef("");
   const wakeLockRef = useRef(null);
   const videoRef = useRef(null);
+
+  // Track conversation item IDs for accurate truncation
+  const conversationItemIdsRef = useRef([]);
+
+  // Session start timestamp for relative timing in logs
+  const sessionStartTimeRef = useRef(null);
 
   // --- 4. EFFECTS ---
 
@@ -67,7 +89,6 @@ const LiveInterviewOpenAI = forwardRef(({
     let interval = null;
     if (connectStatus === "connected" && dbSessionId) {
       interval = setInterval(() => {
-        // console.log("💓 Sending session heartbeat (1 min usage)");
         subscriptionService.recordUsage("LIVE_INTERVIEW", 1, dbSessionId.toString())
           .catch(e => console.error("Heartbeat fail", e));
       }, 60000);
@@ -75,23 +96,9 @@ const LiveInterviewOpenAI = forwardRef(({
     return () => clearInterval(interval);
   }, [connectStatus, dbSessionId]);
 
-  // Proactive Silent Reconnect (Every 15 mins)
-  useEffect(() => {
-    let timer = null;
-    if (connectStatus === "connected") {
-      // console.log(`⏱️ Auto-reconnect timer set for ${RECONNECT_INTERVAL_MS / 60000} mins`);
-      timer = setInterval(() => {
-        // console.log("♻️ Triggering proactive silent reconnect...");
-        performSilentReconnect();
-      }, RECONNECT_INTERVAL_MS);
-    }
-    return () => clearInterval(timer);
-  }, [connectStatus]);
-
   // Cleanup on Unmount
   useEffect(() => {
     return () => {
-      // Force cleanup if component unmounts
       if (pcRef.current) {
         pcRef.current.close();
       }
@@ -131,7 +138,223 @@ const LiveInterviewOpenAI = forwardRef(({
     if (connectStatus === "connected") return "Stop";
   };
 
-  // --- 6. CORE LOGIC ---
+  // --- 6. CONTEXT INJECTION (NEW — ported from InterviewPrepOpenAI) ---
+
+  // --- 6. CONTEXT INJECTION (Disabled for Live Interview — managed by backend) ---
+
+  const injectHistoryContext = (channel) => {
+    // Disabled as backend instructions provide sufficient context.
+    console.log("[LiveInterview] ℹ️ Skipping history injection (managed by backend)");
+  };
+
+  // --- 7. CORE CONNECTION LOGIC ---
+
+  const connectToAI = useCallback(async (isSilentReconnect = false) => {
+    const t0 = Date.now();
+    console.log(`[LiveInterview] 🔌 connectToAI called (silent=${isSilentReconnect}, sessionId=${dbSessionIdRef.current})`);
+
+    try {
+      let secretDict;
+
+      if (isSilentReconnect && dbSessionIdRef.current) {
+        console.log(`[LiveInterview] → Calling /refresh for session ${dbSessionIdRef.current}`);
+        const currentFormData = formDataRef.current;
+        const response = await realtimeService.refreshSession(dbSessionIdRef.current, {
+          jobDescription: currentFormData.jobDescription,
+          cvText: currentFormData.cv,
+          jobTitle: currentFormData.jobRole,
+          interviewRound: currentFormData.interviewRound,
+          interviewType: "live-interview"
+        });
+        secretDict = response.data;
+        console.log(`[LiveInterview] ← /refresh OK (${Date.now() - t0}ms)`, secretDict.data?.sessionId);
+      } else {
+        const currentFormData = formDataRef.current;
+        console.log('[LiveInterview] → Calling /session (initial)', { jobTitle: currentFormData.jobRole });
+        const response = await realtimeService.createSession({
+          jobDescription: currentFormData.jobDescription,
+          cvText: currentFormData.cv,
+          jobTitle: currentFormData.jobRole,
+          interviewRound: currentFormData.interviewRound,
+          interviewType: "live-interview"
+        });
+        secretDict = response.data;
+        console.log(`[LiveInterview] ← /session OK (${Date.now() - t0}ms)`, secretDict.data?.sessionId);
+      }
+
+      // Update Session ID and dynamic reconnect interval
+      if (secretDict.data.sessionId) {
+        setDbSessionId(secretDict.data.sessionId);
+        dbSessionIdRef.current = secretDict.data.sessionId;
+
+        if (!isSilentReconnect) {
+          setStartTime(new Date());
+          sessionStartTimeRef.current = Date.now();
+        }
+      }
+
+      // Use backend-provided MaxDurationMinutes for reconnect timer
+      if (secretDict.data.maxDurationMinutes) {
+        const safeMs = (secretDict.data.maxDurationMinutes - 2) * 60 * 1000;
+        setReconnectIntervalMs(safeMs);
+        console.log(`[LiveInterview] ⏰ MaxDurationMinutes=${secretDict.data.maxDurationMinutes} → reconnect at ${(safeMs / 60000).toFixed(1)} min`);
+      }
+
+      // Clear tracked item IDs on reconnect (new session = new conversation)
+      if (isSilentReconnect) {
+        conversationItemIdsRef.current = [];
+        console.log('[LiveInterview] 🗑️ Cleared conversation item tracker for new session');
+      }
+
+      // B. Create NEW Peer Connection
+      const newPC = new RTCPeerConnection(RTC_CONFIGURATION);
+
+      // Log PC state changes for debugging
+      newPC.onconnectionstatechange = () => {
+        console.log(`[LiveInterview] 📡 PC connectionState: ${newPC.connectionState}`);
+      };
+      newPC.oniceconnectionstatechange = () => {
+        console.log(`[LiveInterview] 🧊 PC iceConnectionState: ${newPC.iceConnectionState}`);
+      };
+
+      // C. Attach EXISTING Stream Tracks to New PC
+      if (mediaStreamRef.current) {
+        const tracks = mediaStreamRef.current.getTracks();
+        console.log(`[LiveInterview] 🎙️ Attaching ${tracks.length} tracks to new PC`);
+        tracks.forEach(track => {
+          newPC.addTrack(track, mediaStreamRef.current);
+        });
+      }
+
+      // D. Data Channel & Events
+      const newDataChannel = newPC.createDataChannel("oai-events", { ordered: true });
+      newDataChannel.onmessage = handleOpenAIEvent;
+
+      newDataChannel.onopen = () => {
+        const elapsed = Date.now() - t0;
+        console.log(`[LiveInterview] 📨 DataChannel OPEN (${elapsed}ms from connectToAI start)`);
+
+        if (isSilentReconnect) {
+          // --- SEAMLESS SWAP ON OPEN ---
+          if (pcRef.current) {
+            console.log(`[LiveInterview] 🔌 Swapping to new PeerConnection (Handover at ${elapsed}ms)`);
+            pcRef.current.close();
+          }
+          pcRef.current = newPC;
+          dcRef.current = newDataChannel;
+
+          injectHistoryContext(newDataChannel);
+          console.log(`[LiveInterview] ✅ Seamless silent reconnect complete (${Date.now() - t0}ms total)`);
+
+          // --- FIX: Flush stuck UI state to history on reconnect ---
+          const qSnap = questionRef.current;
+          const aSnap = answersRef.current;
+          if (qSnap || aSnap) {
+            setChatHistory(prev => {
+              const updated = [...prev, {
+                id: crypto.randomUUID(),
+                question: qSnap,
+                answer: aSnap || "",
+                timestamp: new Date().toISOString()
+              }];
+              return updated.slice(-10);
+            });
+          }
+          setInputText('');
+          setOutputText('');
+          setAnswers('');
+          setQuestion('');
+          questionRef.current = "";
+          answersRef.current = "";
+          if (setTurnStatus) setTurnStatus("");
+        }
+      };
+
+      newDataChannel.onclose = () => {
+        console.warn('[LiveInterview] 📨 DataChannel CLOSED');
+      };
+
+      newDataChannel.onerror = (err) => {
+        console.error('[LiveInterview] 📨 DataChannel ERROR:', err);
+      };
+
+      // E. SDP Handshake
+      const offer = await newPC.createOffer();
+      await newPC.setLocalDescription(offer);
+
+      // --- OPTIMIZATION: Wait for ICE gathering (max 1s) ---
+      // This ensures the offer has valid candidates, making the connection faster.
+      if (newPC.iceGatheringState !== 'complete') {
+        console.log("[LiveInterview] ⏳ Waiting for ICE gathering...");
+        await new Promise(resolve => {
+          const check = () => {
+            if (newPC.iceGatheringState === 'complete') {
+              newPC.removeEventListener('icecandidate', check);
+              resolve();
+            }
+          };
+          newPC.addEventListener('icecandidate', check);
+          setTimeout(() => {
+            newPC.removeEventListener('icecandidate', check);
+            resolve();
+          }, 1000); // 1s max wait
+        });
+      }
+
+      const baseUrl = "https://ks-ai-gpt-realtime-resource.openai.azure.com/openai/v1/realtime?model=realtime";
+      console.log(`[LiveInterview] → Sending SDP offer (${Date.now() - t0}ms)`);
+      const sdpResponse = await fetch(baseUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${secretDict.data.clientSecret}`,
+          "Content-Type": "application/sdp"
+        },
+        body: newPC.localDescription.sdp
+      });
+
+      if (!sdpResponse.ok) {
+        const errorText = await sdpResponse.text();
+        console.error(`[LiveInterview] ❌ SDP Exchange failed: ${sdpResponse.status}`, errorText);
+        throw new Error(`SDP Exchange failed: ${sdpResponse.status}`);
+      }
+
+      const answerSdp = await sdpResponse.text();
+      await newPC.setRemoteDescription({ type: "answer", sdp: answerSdp });
+      console.log(`[LiveInterview] ← SDP answer received (${Date.now() - t0}ms total)`);
+
+      if (!isSilentReconnect) {
+        pcRef.current = newPC;
+        dcRef.current = newDataChannel;
+        setConnectStatus("connected");
+        setActiveStopSession(() => fullDisconnect);
+        clearForm();
+        console.log(`[LiveInterview] ✅ Initial connection complete (${Date.now() - t0}ms total)`);
+      }
+
+    } catch (err) {
+      console.error(`[LiveInterview] ❌ Connection failed (${Date.now() - t0}ms):`, err?.response?.status, err?.response?.data || err.message);
+      if (!isSilentReconnect) setConnectStatus("notConnect");
+      throw err;
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Deps are intentionally empty — we use refs for all mutable values
+
+  // --- 8. RECONNECT HOOK (replaces manual setInterval) ---
+
+  const { isReconnecting, reconnectAttempt, attemptReconnect } = useRealtimeReconnect({
+    connectToAI,
+    connectStatus,
+    mediaStreamRef,
+    dcRef,
+    reconnectIntervalMs,
+    conversationItemIdsRef,
+    onAllRetriesFailed: () => {
+      console.error("[LiveInterview] 💀 All reconnect retries failed — disconnecting");
+      fullDisconnect();
+    },
+  });
+
+  // --- 9. SESSION START ---
 
   const startCapture = async () => {
     try {
@@ -144,7 +367,6 @@ const LiveInterviewOpenAI = forwardRef(({
 
       // Handle user clicking "Stop Sharing" on browser UI
       stream.getVideoTracks()[0].onended = () => {
-        // console.log("User stopped screen sharing via browser UI");
         fullDisconnect();
       };
 
@@ -165,105 +387,7 @@ const LiveInterviewOpenAI = forwardRef(({
     }
   };
 
-  const connectToAI = async (isSilentReconnect = false) => {
-    if (isSilentReconnect) setIsReconnecting(true);
-
-    try {
-      // A. Get Ephemeral Token from Backend
-      const response = await api.post('/Realtime/session', {
-        jobDescription: formData.jobDescription,
-        cvText: formData.cv,
-        jobTitle: formData.jobRole,
-        interviewRound: formData.interviewRound,
-        interviewType: "live-interview"
-      });
-      const secretDict = response.data;
-
-      // Only set DB Session ID on first connect (not reconnects)
-      if (!isSilentReconnect && secretDict.data.sessionId) {
-        setDbSessionId(secretDict.data.sessionId);
-        setStartTime(new Date());
-      }
-
-      // B. Create NEW Peer Connection
-      const newPC = new RTCPeerConnection(RTC_CONFIGURATION);
-
-      // C. Attach EXISTING Stream Tracks to New PC
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach(track => {
-          newPC.addTrack(track, mediaStreamRef.current);
-        });
-      }
-
-      // D. Setup Audio Output
-      // newPC.ontrack = (e) => {
-      //   // const audioEl = new Audio();
-      //   // audioEl.srcObject = e.streams[0];
-      //   // audioEl.play().catch(e => console.error("Audio play error", e));
-      // };
-
-      // E. Data Channel & Events
-      const newDataChannel = newPC.createDataChannel("oai-events", { ordered: true });
-      newDataChannel.onmessage = handleOpenAIEvent;
-
-      // F. SDP Handshake
-      const offer = await newPC.createOffer();
-      await newPC.setLocalDescription(offer);
-
-      const baseUrl = "https://ks-ai-gpt-realtime-resource.openai.azure.com/openai/v1/realtime?model=realtime";
-      const sdpResponse = await fetch(baseUrl, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${secretDict.data.clientSecret}`,
-          "Content-Type": "application/sdp"
-        },
-        body: offer.sdp
-      });
-
-      if (!sdpResponse.ok) throw new Error("SDP Exchange failed");
-
-      const answerSdp = await sdpResponse.text();
-      await newPC.setRemoteDescription({ type: "answer", sdp: answerSdp });
-
-      // G. HANDOVER LOGIC
-      if (isSilentReconnect) {
-        // console.log("🔀 Handover: Switching to new connection...");
-
-        // Close OLD connection refs
-        if (pcRef.current) pcRef.current.close();
-        if (dcRef.current) dcRef.current.close();
-
-        // Swap Refs
-        pcRef.current = newPC;
-        dcRef.current = newDataChannel;
-
-        setIsReconnecting(false);
-        // console.log("✅ Handover complete. Stream maintained.");
-      } else {
-        // First time setup
-        pcRef.current = newPC;
-        dcRef.current = newDataChannel;
-        setConnectStatus("connected");
-        setActiveStopSession(() => fullDisconnect());
-        clearForm();
-      }
-
-    } catch (err) {
-      console.error("Connection failed:", err);
-      if (!isSilentReconnect) setConnectStatus("notConnect");
-      setIsReconnecting(false);
-    }
-  };
-
-  const performSilentReconnect = () => {
-    // Verify we still have a stream before trying
-    if (mediaStreamRef.current && mediaStreamRef.current.active) {
-      connectToAI(true);
-    } else {
-      console.warn("Cannot reconnect: Media stream is dead.");
-      fullDisconnect();
-    }
-  };
+  // --- 10. DISCONNECT ---
 
   const fullDisconnect = async () => {
     await releaseWakeLock();
@@ -283,22 +407,18 @@ const LiveInterviewOpenAI = forwardRef(({
     // Stop Backend Session
     if (dbSessionId) {
       try {
-        // console.log(`Stopping session ${dbSessionId}...`);
         await subscriptionService.stopSession(dbSessionId, 0);
-
-        // FIXED: refreshUsage is now properly defined from useAuth
         if (refreshUsage) await refreshUsage();
       } catch (e) { console.error(e); }
       setDbSessionId(null);
     }
 
     setConnectStatus("notConnect");
-    setIsReconnecting(false);
 
     // Reset UI state
     setAnswers("");
     setQuestion("");
-    setIsSharing(false); // FIXED: properly defined in useState
+    setIsSharing(false);
     setChatHistory([]);
     setActiveStopSession(null);
   };
@@ -308,9 +428,9 @@ const LiveInterviewOpenAI = forwardRef(({
     fullDisconnect();
   };
 
-  // --- 7. EVENT HANDLERS ---
+  // --- 11. EVENT HANDLERS ---
   const handleDone = () => {
-    const questionSnapshot = questionRef.current; // FIXED: properly defined in useRef
+    const questionSnapshot = questionRef.current;
     const answerSnapshot = answersRef.current;
 
     if (questionSnapshot || answerSnapshot) {
@@ -320,12 +440,13 @@ const LiveInterviewOpenAI = forwardRef(({
           {
             id: crypto.randomUUID(),
             question: questionSnapshot,
-            answer: answerSnapshot,
+            // If answer is empty, still save the question so it shows up
+            answer: answerSnapshot || "",
             timestamp: new Date().toISOString()
           }
         ];
 
-        // ✅ Keep only the last 25 chat bubbles
+        // Keep only the last 10 chat entries
         return updated.slice(-10);
       });
     }
@@ -334,51 +455,104 @@ const LiveInterviewOpenAI = forwardRef(({
     setOutputText('');
     setAnswers('');
     setQuestion('');
-    questionRef.current = ""; // Reset ref
-    answersRef.current = ""; // Reset ref
+    questionRef.current = "";
+    answersRef.current = "";
   };
 
-  const handleOpenAIEvent = async (event) => {
+  const handleOpenAIEvent = (event) => {
     const message = JSON.parse(event.data);
     const { type } = message;
 
-    // Handle Session Expired Error (Backup for the timer)
-    if (message.type === 'error' && message.error?.code === 'session_expired') {
-      // console.warn("⚠️ Received session_expired from API. Triggering immediate reconnect.");
-      performSilentReconnect();
+    // Calculate elapsed time for logs
+    const elapsed = sessionStartTimeRef.current
+      ? `+${((Date.now() - sessionStartTimeRef.current) / 1000).toFixed(0)}s`
+      : '';
+
+    // --- LOG ALL EVENT TYPES ---
+    if (type === 'response.output_audio_transcript.delta' ||
+      type === 'response.audio.delta' ||
+      type === 'response.text.delta') {
+      // Don't spam console
+    } else if (type === 'error') {
+      console.error(`[LiveInterview] [${elapsed}] ❌ EVENT: ${type}`, message.error);
+    } else {
+      console.log(`[LiveInterview] [${elapsed}] 📩 EVENT: ${type}`, message);
+    }
+
+    // --- Track conversation item IDs ---
+    if (type === 'conversation.item.created' && message.item?.id) {
+      conversationItemIdsRef.current.push(message.item.id);
+    }
+
+    // --- Handle Session Expired ---
+    if (type === 'error' && message.error?.code === 'session_expired') {
+      attemptReconnect(0);
       return;
+    }
+
+    // --- Internal State Management (turnStatus) ---
+    // Update the parent's turnStatus based on OpenAI events
+    if (type === 'input_audio_buffer.speech_started') {
+      setTurnStatus("speaking");
+    } else if (type === 'input_audio_buffer.speech_stopped' || type === 'input_audio_buffer.committed') {
+      setTurnStatus("thinking");
+    } else if (type === 'response.created') {
+      setTurnStatus("thinking");
+    } else if (type === 'response.output_audio_transcript.delta' || type === 'response.text.delta') {
+      setTurnStatus("responding");
     }
 
     switch (type) {
       case "response.output_audio_transcript.delta":
+      case "response.text.delta": // Support for text-only responses
         try {
+          const delta = message.delta || (message.content?.[0]?.text) || "";
           setOutputText(prev => {
-            const newText = prev + (message.delta || "");
+            const newText = prev + delta;
             setAnswers(newText);
             answersRef.current = newText;
             return newText;
           });
         } catch (error) {
-          console.error("Error handling transcript delta:", error);
+          console.error("Error handling delta:", error);
         }
         break;
 
       case "response.output_item.done":
+        console.log(`[LiveInterview] [${elapsed}] ✅ Response item done`);
+        break;
+
+      case "response.done": // FINAL safety fallback
+        console.log(`[LiveInterview] [${elapsed}] 🏁 Response DONE — finalizing turn`);
+        setTurnStatus(""); // Reset status
+
+        // Always finalize the turn to ensure the question gets pushed to history,
+        // even if the AI didn't generate an answer (e.g. voice activity without content)
         handleDone();
+        break;
+
+      case "response.cancelled":
+        console.warn(`[LiveInterview] [${elapsed}] ⚠️ Response CANCELLED`);
+        setTurnStatus("");
         break;
 
       case "conversation.item.input_audio_transcription.completed":
         try {
+          const transcript = message.transcript || "";
+          console.log(`[LiveInterview] [${elapsed}] 🎤 User transcription: "${transcript.substring(0, 80)}..."`);
           setInputText(prev => {
-            const newText = prev + (message.transcript || "");
+            // Ensure proper spacing between fragmented sentences
+            const separator = (prev && !prev.endsWith(' ') && !transcript.startsWith(' ')) ? ' ' : '';
+            const newText = prev + separator + transcript;
             setQuestion(newText);
-            questionRef.current = newText; // FIXED: properly defined in useRef
+            questionRef.current = newText;
             return newText;
           });
         } catch (error) {
-          console.error("Error handling transcript delta:", error);
+          console.error("Error handling transcript:", error);
         }
         break;
+
       default:
         break;
     }
@@ -408,7 +582,7 @@ const LiveInterviewOpenAI = forwardRef(({
           }}
         />
 
-        {/* Reconnecting Indicator */}
+        {/* Reconnecting Indicator — now shows retry attempt count */}
         <Fade in={isReconnecting}>
           <Box sx={{
             position: 'absolute', top: 20, right: 20,
@@ -417,7 +591,9 @@ const LiveInterviewOpenAI = forwardRef(({
             display: 'flex', alignItems: 'center', gap: 1, zIndex: 10
           }}>
             <CircularProgress size={16} color="inherit" />
-            <Typography variant="caption">Refreshing Connection...</Typography>
+            <Typography variant="caption">
+              Refreshing Connection...{reconnectAttempt > 1 ? ` (Attempt ${reconnectAttempt})` : ''}
+            </Typography>
           </Box>
         </Fade>
       </Box>
