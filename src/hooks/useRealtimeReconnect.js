@@ -12,7 +12,7 @@ const BASE_DELAY_MS = 2000;
 const HEALTH_CHECK_INTERVAL_MS = 30 * 1000;
 
 // How often we truncate old audio items from the OpenAI context window
-const TRUNCATE_INTERVAL_MS = 2 * 60 * 1000; // every 2 minutes
+const TRUNCATE_INTERVAL_MS = 1 * 60 * 1000; // every 1 minute
 
 /**
  * Shared hook for managing proactive reconnection, exponential-backoff
