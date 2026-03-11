@@ -155,6 +155,8 @@ const InterviewPrepOpenAI = forwardRef(({
 
   // --- 5. CORE CONNECTION LOGIC ---
 
+  const attemptReconnectRef = useRef(null);
+
   const connectToAI = useCallback(async (isSilentReconnect = false) => {
     const t0 = Date.now();
     console.log(`[InterviewPrep] 🔌 connectToAI called (silent=${isSilentReconnect}, sessionId=${dbSessionIdRef.current})`);
@@ -213,11 +215,20 @@ const InterviewPrepOpenAI = forwardRef(({
       const newPC = new RTCPeerConnection(RTC_CONFIGURATION);
 
       // Log PC state changes
+      // Log PC state changes and trap drops
       newPC.onconnectionstatechange = () => {
         console.log(`[InterviewPrep] 📡 PC connectionState: ${newPC.connectionState}`);
+        if (newPC.connectionState === 'disconnected' || newPC.connectionState === 'failed') {
+          console.warn(`[InterviewPrep] 🚨 PeerConnection dropped (${newPC.connectionState}) — triggering silent reconnect`);
+          if (attemptReconnectRef.current) attemptReconnectRef.current(0);
+        }
       };
       newPC.oniceconnectionstatechange = () => {
         console.log(`[InterviewPrep] 🧊 PC iceConnectionState: ${newPC.iceConnectionState}`);
+        if (newPC.iceConnectionState === 'disconnected' || newPC.iceConnectionState === 'failed') {
+          console.warn(`[InterviewPrep] 🚨 ICE Connection dropped (${newPC.iceConnectionState}) — triggering silent reconnect`);
+          if (attemptReconnectRef.current) attemptReconnectRef.current(0);
+        }
       };
 
       // Use existing stream from ref
@@ -241,6 +252,7 @@ const InterviewPrepOpenAI = forwardRef(({
       newDC.onopen = () => {
         const elapsed = Date.now() - t0;
         console.log(`[InterviewPrep] 📨 DataChannel OPEN (${elapsed}ms from connectToAI start)`);
+
 
         if (isSilentReconnect) {
           // --- SEAMLESS SWAP ON OPEN ---
@@ -335,15 +347,27 @@ const InterviewPrepOpenAI = forwardRef(({
     onAllRetriesFailed: () => {
       console.error("[InterviewPrep] 💀 All reconnect retries failed — disconnecting");
       disconnectWebSocket();
-    },
+    }
   });
+
+  useEffect(() => {
+    attemptReconnectRef.current = attemptReconnect;
+  }, [attemptReconnect]);
 
   const startSession = async () => {
     try {
       setConnectStatus("connecting");
       setShowWelcome(false);
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,      // Mono is usually better for speech recognition
+          sampleRate: 16000     // Matches Whisper/Realtime API preferred rate
+        } 
+      });
       mediaStreamRef.current = stream;
 
       visualize(stream);
@@ -351,6 +375,11 @@ const InterviewPrepOpenAI = forwardRef(({
 
     } catch (error) {
       console.error("Media Error:", error);
+      if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
+        alert("Microphone access was denied. Please allow permissions in your browser and try again.");
+      } else {
+        alert("Failed to access microphone. Please check your system settings.");
+      }
       setConnectStatus("notConnect");
       setShowWelcome(true);
     }
@@ -466,6 +495,10 @@ const InterviewPrepOpenAI = forwardRef(({
       type === 'response.text.delta') {
       // Don't spam console with every audio/transcript delta
     } else if (type === 'error') {
+      if (message.error?.code === 'response_cancel_not_active') {
+        // Benign error: We told the AI to stop talking when we started speaking, but it wasn't talking anyway.
+        return; 
+      }
       console.error(`[InterviewPrep] [${elapsed}] ❌ EVENT: ${type}`, message.error);
     } else {
       console.log(`[InterviewPrep] [${elapsed}] 📩 EVENT: ${type}`, message);
@@ -477,21 +510,19 @@ const InterviewPrepOpenAI = forwardRef(({
       console.log(`[InterviewPrep] [${elapsed}] 📋 Tracked item: ${message.item.id} (total: ${conversationItemIdsRef.current.length})`);
     }
 
-    // --- Handle Session Expired Error ---
-    if (type === 'error' && message.error?.code === 'session_expired') {
-      console.warn(`[InterviewPrep] [${elapsed}] ⚠️ Session expired — triggering immediate reconnect`);
-      attemptReconnect(0);
-      return;
-    }
-
-    // --- Handle rate limit / context overflow errors ---
+    // --- Handle Critical Server Errors ---
     if (type === 'error') {
-      console.error(`[InterviewPrep] [${elapsed}] Error details:`, JSON.stringify(message.error, null, 2));
-      if (message.error?.message?.toLowerCase().includes('context') ||
-        message.error?.message?.toLowerCase().includes('token') ||
-        message.error?.code === 'rate_limit_exceeded') {
-        console.warn(`[InterviewPrep] [${elapsed}] ⚠️ Context/token/rate error — triggering reconnect`);
+      const errCode = message.error?.code;
+      // Reconnect silently if token expired or rate limited
+      if (errCode === 'session_expired' || errCode === 'rate_limit_exceeded' || message.error?.message?.toLowerCase().includes('token')) {
+        console.warn(`[InterviewPrep] [${elapsed}] ⚠️ Tolerable Error (${errCode}) — triggering reconnect`);
         attemptReconnect(0);
+        return;
+      }
+      // Hard crash on content filtering or out of quota
+      if (errCode === 'insufficient_quota' || errCode === 'content_filter_violation') {
+        alert(`Session error: ${errCode}. Please try again later.`);
+        disconnectWebSocket();
         return;
       }
     }
@@ -499,6 +530,13 @@ const InterviewPrepOpenAI = forwardRef(({
     // --- Handle response cancellation ---
     if (type === 'response.cancelled') {
       console.warn(`[InterviewPrep] [${elapsed}] ⚠️ Response was CANCELLED by server`);
+    }
+
+    // --- Graceful Interruption ---
+    if (type === 'input_audio_buffer.speech_started') {
+      if (dcRef.current?.readyState === 'open') {
+        dcRef.current.send(JSON.stringify({ type: 'response.cancel' }));
+      }
     }
 
     switch (type) {
@@ -513,10 +551,36 @@ const InterviewPrepOpenAI = forwardRef(({
         console.log(`[InterviewPrep] [${elapsed}] ✅ Response complete — saving to chat history`);
         handleDone();
         break;
+      case "response.done": // FINAL safety fallback
+        console.log(`[InterviewPrep] [${elapsed}] 🏁 Response DONE`, message.response);
+
+        // Trap silence timeouts where the model decided not to speak (e.g. paused user input)
+        if (message.response?.status === "failed" && message.response?.status_details?.error?.code === "first_output_timeout") {
+          console.warn(`[InterviewPrep] [${elapsed}] ⏳ Ignored first_output_timeout (user likely paused/stuttered). Continuing to listen...`);
+          
+          // Fix: Flush the partial transcript so it doesn't "bundle" up on the next turn
+          const qSnap = questionRef.current;
+          if (qSnap) {
+            setChatHistory(prev => {
+              const updated = [...prev, {
+                id: crypto.randomUUID(),
+                question: qSnap,
+                answer: "",
+                timestamp: new Date().toISOString()
+              }];
+              return updated.slice(-10);
+            });
+            setQuestion('');
+            questionRef.current = "";
+          }
+          // Stop here so we don't finalize an empty turn
+          break;
+        }
+        break;
       case "conversation.item.input_audio_transcription.completed": {
         const transcript = message.transcript || "";
         console.log(`[InterviewPrep] [${elapsed}] 🎤 User transcription: "${transcript.substring(0, 80)}..."`);
-        setQuestion(transcript);
+        queueMicrotask(() => setQuestion(transcript)); // Fix React warning
         questionRef.current = transcript;
         break;
       }

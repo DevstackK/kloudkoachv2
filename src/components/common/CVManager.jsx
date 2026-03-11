@@ -255,9 +255,11 @@ const CVManager = ({ onCVChange }) => {
           </Box>
           
           <Tooltip title="Refresh List">
-            <IconButton onClick={fetchResumeList} disabled={isListLoading} size="small">
-              <RefreshIcon />
-            </IconButton>
+            <span>
+              <IconButton onClick={fetchResumeList} disabled={isListLoading} size="small">
+                <RefreshIcon />
+              </IconButton>
+            </span>
           </Tooltip>
         </Box>
 
@@ -362,7 +364,9 @@ const CVManager = ({ onCVChange }) => {
                         <CheckCircleIcon color="success" /> 
                     ) : (
                         <Tooltip title="Click to Activate">
-                            <RadioButtonUncheckedIcon color="action" />
+                            <span>
+                                <RadioButtonUncheckedIcon color="action" />
+                            </span>
                         </Tooltip>
                     )}
                   </ListItemIcon>

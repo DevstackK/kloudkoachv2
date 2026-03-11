@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { useAuth } from './AuthContext'; // Import useAuth to get the initial CV
 
 // 1. Define the default state
@@ -19,6 +19,13 @@ export const InterviewSetupProvider = ({ children }) => {
     ...initialState,
     cv: user?.resumeRawText || '',
   });
+
+  // 2.5 Sync CV if it's loaded AFTER initial mount (e.g. fresh signup & upload)
+  useEffect(() => {
+    if (user?.resumeRawText && !formData.cv) {
+      setFormData(prev => ({ ...prev, cv: user.resumeRawText }));
+    }
+  }, [user?.resumeRawText, formData.cv]);
 
   // 3. Create a function to clear the form (useful for later)
   const clearForm = () => {

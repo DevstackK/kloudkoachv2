@@ -149,6 +149,8 @@ const LiveInterviewOpenAI = forwardRef(({
 
   // --- 7. CORE CONNECTION LOGIC ---
 
+  const attemptReconnectRef = useRef(null);
+
   const connectToAI = useCallback(async (isSilentReconnect = false) => {
     const t0 = Date.now();
     console.log(`[LiveInterview] 🔌 connectToAI called (silent=${isSilentReconnect}, sessionId=${dbSessionIdRef.current})`);
@@ -210,11 +212,20 @@ const LiveInterviewOpenAI = forwardRef(({
       const newPC = new RTCPeerConnection(RTC_CONFIGURATION);
 
       // Log PC state changes for debugging
+      // Log PC state changes for debugging and trap network drops
       newPC.onconnectionstatechange = () => {
         console.log(`[LiveInterview] 📡 PC connectionState: ${newPC.connectionState}`);
+        if (newPC.connectionState === 'disconnected' || newPC.connectionState === 'failed') {
+          console.warn(`[LiveInterview] 🚨 PeerConnection dropped (${newPC.connectionState}) — triggering silent reconnect`);
+          if (attemptReconnectRef.current) attemptReconnectRef.current(0);
+        }
       };
       newPC.oniceconnectionstatechange = () => {
         console.log(`[LiveInterview] 🧊 PC iceConnectionState: ${newPC.iceConnectionState}`);
+        if (newPC.iceConnectionState === 'disconnected' || newPC.iceConnectionState === 'failed') {
+          console.warn(`[LiveInterview] 🚨 ICE Connection dropped (${newPC.iceConnectionState}) — triggering silent reconnect`);
+          if (attemptReconnectRef.current) attemptReconnectRef.current(0);
+        }
       };
 
       // C. Attach EXISTING Stream Tracks to New PC
@@ -233,6 +244,7 @@ const LiveInterviewOpenAI = forwardRef(({
       newDataChannel.onopen = () => {
         const elapsed = Date.now() - t0;
         console.log(`[LiveInterview] 📨 DataChannel OPEN (${elapsed}ms from connectToAI start)`);
+
 
         if (isSilentReconnect) {
           // --- SEAMLESS SWAP ON OPEN ---
@@ -266,7 +278,7 @@ const LiveInterviewOpenAI = forwardRef(({
           setQuestion('');
           questionRef.current = "";
           answersRef.current = "";
-          if (setTurnStatus) setTurnStatus("");
+          if (setTurnStatus) queueMicrotask(() => setTurnStatus(""));
         }
       };
 
@@ -339,7 +351,7 @@ const LiveInterviewOpenAI = forwardRef(({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Deps are intentionally empty — we use refs for all mutable values
 
-  // --- 8. RECONNECT HOOK (replaces manual setInterval) ---
+  // --- 8. RECONNECT HOOK ---
 
   const { isReconnecting, reconnectAttempt, attemptReconnect } = useRealtimeReconnect({
     connectToAI,
@@ -351,8 +363,12 @@ const LiveInterviewOpenAI = forwardRef(({
     onAllRetriesFailed: () => {
       console.error("[LiveInterview] 💀 All reconnect retries failed — disconnecting");
       fullDisconnect();
-    },
+    }
   });
+
+  useEffect(() => {
+    attemptReconnectRef.current = attemptReconnect;
+  }, [attemptReconnect]);
 
   // --- 9. SESSION START ---
 
@@ -361,7 +377,17 @@ const LiveInterviewOpenAI = forwardRef(({
       setConnectStatus("connecting");
 
       // Request screen share ONLY ONCE
-      const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+      const stream = await navigator.mediaDevices.getDisplayMedia({ 
+        video: true,
+        // Apply the same noise reduction constraints to the system/tab audio being shared
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+          sampleRate: 16000
+        } 
+      });
       mediaStreamRef.current = stream;
       setIsSharing(true);
 
@@ -382,6 +408,11 @@ const LiveInterviewOpenAI = forwardRef(({
 
     } catch (error) {
       console.error("Media Error:", error);
+      if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
+        alert("Microphone or Screen Recording access was denied. Please allow permissions in your browser and try again.");
+      } else {
+        alert("Failed to access media devices. Please check your system settings.");
+      }
       setConnectStatus("notConnect");
       setIsSharing(false);
     }
@@ -474,6 +505,10 @@ const LiveInterviewOpenAI = forwardRef(({
       type === 'response.text.delta') {
       // Don't spam console
     } else if (type === 'error') {
+      if (message.error?.code === 'response_cancel_not_active') {
+        // Benign error: We told the AI to stop talking when we started speaking, but it wasn't talking anyway.
+        return; 
+      }
       console.error(`[LiveInterview] [${elapsed}] ❌ EVENT: ${type}`, message.error);
     } else {
       console.log(`[LiveInterview] [${elapsed}] 📩 EVENT: ${type}`, message);
@@ -484,22 +519,40 @@ const LiveInterviewOpenAI = forwardRef(({
       conversationItemIdsRef.current.push(message.item.id);
     }
 
-    // --- Handle Session Expired ---
-    if (type === 'error' && message.error?.code === 'session_expired') {
-      attemptReconnect(0);
-      return;
+    // --- Handle Critical Server Errors ---
+    if (type === 'error') {
+      const errCode = message.error?.code;
+      // Reconnect silently if token expired or rate limited
+      if (errCode === 'session_expired' || errCode === 'rate_limit_exceeded' || message.error?.message?.toLowerCase().includes('token')) {
+        console.warn(`[LiveInterview] [${elapsed}] ⚠️ Tolerable Error (${errCode}) — triggering reconnect`);
+        attemptReconnect(0);
+        return;
+      }
+      // Hard crash on content filtering or out of quota
+      if (errCode === 'insufficient_quota' || errCode === 'content_filter_violation') {
+        alert(`Session error: ${errCode}. Please try again later.`);
+        fullDisconnect();
+        return;
+      }
     }
 
     // --- Internal State Management (turnStatus) ---
     // Update the parent's turnStatus based on OpenAI events
+    // FIX: Using queueMicrotask directly prevents React from warning about
+    // "Cannot update a component while rendering a different component"
     if (type === 'input_audio_buffer.speech_started') {
-      setTurnStatus("speaking");
+      queueMicrotask(() => setTurnStatus("speaking"));
+      // [NEW] Graceful Interruption: if AI is talking, tell it to stop immediately
+      if (dcRef.current?.readyState === 'open') {
+        // Send cancel instruction to backend Azure OpenAI
+        dcRef.current.send(JSON.stringify({ type: 'response.cancel' }));
+      }
     } else if (type === 'input_audio_buffer.speech_stopped' || type === 'input_audio_buffer.committed') {
-      setTurnStatus("thinking");
+      queueMicrotask(() => setTurnStatus("thinking"));
     } else if (type === 'response.created') {
-      setTurnStatus("thinking");
+      queueMicrotask(() => setTurnStatus("thinking"));
     } else if (type === 'response.output_audio_transcript.delta' || type === 'response.text.delta') {
-      setTurnStatus("responding");
+      queueMicrotask(() => setTurnStatus("responding"));
     }
 
     switch (type) {
@@ -523,8 +576,34 @@ const LiveInterviewOpenAI = forwardRef(({
         break;
 
       case "response.done": // FINAL safety fallback
-        console.log(`[LiveInterview] [${elapsed}] 🏁 Response DONE — finalizing turn`);
-        setTurnStatus(""); // Reset status
+        console.log(`[LiveInterview] [${elapsed}] 🏁 Response DONE — finalizing turn`, message.response);
+
+        // Trap silence timeouts where the model decided not to speak (e.g. paused user input)
+        // If the response failed due to timeout, ignore it and keep listening instead of finalizing the turn
+        if (message.response?.status === "failed" && message.response?.status_details?.error?.code === "first_output_timeout") {
+          console.warn(`[LiveInterview] [${elapsed}] ⏳ Ignored first_output_timeout (user likely paused/stuttered). Continuing to listen...`);
+          queueMicrotask(() => setTurnStatus(""));
+          
+          // Fix: Flush the partial transcript so it doesn't "bundle" up on the next turn
+          const qSnap = questionRef.current;
+          if (qSnap) {
+            setChatHistory(prev => {
+              const updated = [...prev, {
+                id: crypto.randomUUID(),
+                question: qSnap,
+                answer: "",
+                timestamp: new Date().toISOString()
+              }];
+              return updated.slice(-10);
+            });
+            setInputText('');
+            setQuestion('');
+            questionRef.current = "";
+          }
+          break;
+        }
+
+        queueMicrotask(() => setTurnStatus("")); // Reset status
 
         // Always finalize the turn to ensure the question gets pushed to history,
         // even if the AI didn't generate an answer (e.g. voice activity without content)
@@ -533,7 +612,7 @@ const LiveInterviewOpenAI = forwardRef(({
 
       case "response.cancelled":
         console.warn(`[LiveInterview] [${elapsed}] ⚠️ Response CANCELLED`);
-        setTurnStatus("");
+        queueMicrotask(() => setTurnStatus(""));
         break;
 
       case "conversation.item.input_audio_transcription.completed":
@@ -544,7 +623,7 @@ const LiveInterviewOpenAI = forwardRef(({
             // Ensure proper spacing between fragmented sentences
             const separator = (prev && !prev.endsWith(' ') && !transcript.startsWith(' ')) ? ' ' : '';
             const newText = prev + separator + transcript;
-            setQuestion(newText);
+            queueMicrotask(() => setQuestion(newText)); // Fix React warning
             questionRef.current = newText;
             return newText;
           });
