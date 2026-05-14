@@ -29,17 +29,16 @@ const InterviewSetupForm = ({ onSubmit, loading }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Get resume data from user context instead of form data
     setError("");
     if (!user?.resumeRawText && !formData.cv) {
       setError("Please upload or select a resume to proceed.");
-      return; 
+      return;
     }
     const submitData = {
       ...formData,
-      cv: user?.resumeRawText || "", // Use resume data from auth context
+      cv: formData.cv || user?.resumeRawText || "", // Use uploaded CV first, fall back to saved CV
     };
-    onSubmit(formData);
+    onSubmit(submitData);
   };
 
   // Reusable Glassmorphism Style
@@ -89,10 +88,10 @@ const InterviewSetupForm = ({ onSubmit, loading }) => {
           }}
         >
           {error && (
-             <Alert severity="error" sx={{ mb: 2 }}>
-               {error}
-             </Alert>
-           )}
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
           <Typography
             variant="h5"
             align="center"
@@ -117,7 +116,7 @@ const InterviewSetupForm = ({ onSubmit, loading }) => {
               "& .MuiOutlinedInput-root": {
                 borderRadius: "12px",
                 // Remove hardcoded 'white', let theme handle it
-                bgcolor: "background.paper", 
+                bgcolor: "background.paper",
               },
               mb: 2,
             }}

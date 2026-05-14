@@ -46,6 +46,7 @@ const LiveInterviewPage = () => {
   const [error, setError] = useState(null);
   const appRef = useRef(null);
   const [formData, setFormData] = useState(null); // ✅ new state
+  const [turnStatus, setTurnStatus] = useState(""); // "speaking", "thinking", "responding", ""
 
   const [errors, setErrors] = useState({
     jobDescription: '',
@@ -95,13 +96,13 @@ const LiveInterviewPage = () => {
   };
 
   const handleClearHistory = () => {
-  setChatHistory([]);
+    setChatHistory([]);
   };
 
   const startSession = async ({ cv, jobRole, interviewRound, jobDescription }) => {
     setError(null);
     setLoading(true);
-    setFormData({cv, jobRole, interviewRound, jobDescription }); // ✅ store form data for later use
+    setFormData({ cv, jobRole, interviewRound, jobDescription }); // ✅ store form data for later use
     setIsConfirmed(true);
   };
 
@@ -110,29 +111,29 @@ const LiveInterviewPage = () => {
 
   return (
     <Box
-          sx={{
-            display: "flex",
-            flexDirection: "row", // Changed to column for centering
-            alignItems: "center",
-            justifyContent: "center", // Added for vertical centering
-            flexGrow: 1, // Allow this box to fill the space from MainLayout
-            backgroundColor: "background.default",
-            // --- Fullscreen Wrapper Styles ---
-            p: isFullscreenMode ? 0 : 2, // No padding in fullscreen
-            position: isFullscreenMode ? 'fixed' : 'relative',
-            inset: isFullscreenMode ? 0 : 'auto',
-            zIndex: isFullscreenMode ? 2000 : 'auto', // High z-index in fullscreen
-            overflow: isFullscreenMode ? 'hidden' : 'auto',
-          }}
-        >
-          {!isConfirmed ? (
-            <Box sx={{ width: "100%"}}>
-              <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ fontWeight: 'bold' }}>
-                Live Interview Co-Pilot
-              </Typography>
-              <Typography fontWeight="bold" color="text.secondary" align="center">
-                Share your screen from a live interview (Meet, Zoom, Teams). Our AI will detect questions in real-time and provide you with suggested answers instantly.
-              </Typography>
+      sx={{
+        display: "flex",
+        flexDirection: "row", // Changed to column for centering
+        alignItems: "center",
+        justifyContent: "center", // Added for vertical centering
+        flexGrow: 1, // Allow this box to fill the space from MainLayout
+        backgroundColor: "background.default",
+        // --- Fullscreen Wrapper Styles ---
+        p: isFullscreenMode ? 0 : 2, // No padding in fullscreen
+        position: isFullscreenMode ? 'fixed' : 'relative',
+        inset: isFullscreenMode ? 0 : 'auto',
+        zIndex: isFullscreenMode ? 2000 : 'auto', // High z-index in fullscreen
+        overflow: isFullscreenMode ? 'hidden' : 'auto',
+      }}
+    >
+      {!isConfirmed ? (
+        <Box sx={{ width: "100%" }}>
+          <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ fontWeight: 'bold' }}>
+            Live Interview Co-Pilot
+          </Typography>
+          <Typography fontWeight="bold" color="text.secondary" align="center">
+            Share your screen from a live interview (Meet, Zoom, Teams). Our AI will detect questions in real-time and provide you with suggested answers instantly.
+          </Typography>
           <InterviewSetupForm loading={loading} onSubmit={startSession} />
           {error && (
             <Typography color="error" sx={{ mt: 2, textAlign: "center" }}>
@@ -140,84 +141,85 @@ const LiveInterviewPage = () => {
             </Typography>
           )}
         </Box>
-          ) : (
-                <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                <Grid container spacing={isFullscreenMode ? 0 : 2} sx={{ flexGrow: 1, height: '100%' }}>
-                  <Grid 
-                    item 
-                    xs={12} 
-                    md={isFullscreenMode ? 12 : 6}
-                    sx={{
-                      height: isFullscreenMode ? '100vh' : '750px',
-                      position: isFullscreenMode ? 'fixed' : 'relative',
-                      inset: isFullscreenMode ? 0 : 'auto',
-                    }}
+      ) : (
+        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+          <Grid container spacing={isFullscreenMode ? 0 : 2} sx={{ flexGrow: 1, height: '100%' }}>
+            <Grid
+              item
+              xs={12}
+              md={isFullscreenMode ? 12 : 6}
+              sx={{
+                height: isFullscreenMode ? '100vh' : '750px',
+                position: isFullscreenMode ? 'fixed' : 'relative',
+                inset: isFullscreenMode ? 0 : 'auto',
+              }}
+            >
+              <Paper
+                elevation={isFullscreenMode ? 0 : 3}
+                sx={{
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  borderRadius: isFullscreenMode ? 0 : 'inherit'
+                }}
+              >
+                <LiveInterviewOpenAI
+                  ref={appRef}
+                  answers={answers}
+                  setAnswers={setAnswers}
+                  question={question}
+                  setQuestion={setQuestion}
+                  chatHistory={chatHistory}
+                  setChatHistory={setChatHistory}
+                  formData={formData}
+                  onConnectionStatusChange={setConnectionStatus}
+                  isFullscreen={isFullscreenMode}
+                  setTurnStatus={setTurnStatus}
+                />
+                <Box sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  p: 1,
+                  // Position controls over the video in fullscreen
+                  position: isFullscreenMode ? 'fixed' : 'relative',
+                  bottom: isFullscreenMode ? 20 : 'auto',
+                  left: isFullscreenMode ? '50%' : 'auto',
+                  transform: isFullscreenMode ? 'translateX(-50%)' : 'none',
+                  zIndex: isFullscreenMode ? 2100 : 'auto',
+                  background: isFullscreenMode ? 'rgba(0,0,0,0.5)' : 'transparent',
+                  borderRadius: isFullscreenMode ? '8px' : 0,
+                }}>
+                  <Button
+                    startIcon={<ArrowBackIcon />}
+                    color={isFullscreenMode ? "secondary" : "primary"}
+                    variant={isFullscreenMode ? "contained" : "text"}
+                    onClick={handleGoBack}
+                    // Disable if connecting, but allow "Stop Session" if connected
+                    disabled={connectionStatus === 'connecting'}
                   >
-                    <Paper 
-                      elevation={isFullscreenMode ? 0 : 3} 
-                      sx={{ 
-                        height: '100%', 
-                        display: 'flex', 
-                        flexDirection: 'column',
-                        borderRadius: isFullscreenMode ? 0 : 'inherit'
-                      }}
-                    >
-                    <LiveInterviewOpenAI
-                      ref={appRef}
-                      answers={answers}
-                      setAnswers={setAnswers}
-                      question={question}
-                      setQuestion={setQuestion}
-                      chatHistory={chatHistory}
-                      setChatHistory={setChatHistory}
-                      formData={formData}
-                      onConnectionStatusChange={setConnectionStatus}
-                      isFullscreen={isFullscreenMode}
-                    />
-                    <Box sx={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center', 
-                      p: 1,
-                      // Position controls over the video in fullscreen
-                      position: isFullscreenMode ? 'fixed' : 'relative',
-                      bottom: isFullscreenMode ? 20 : 'auto',
-                      left: isFullscreenMode ? '50%' : 'auto',
-                      transform: isFullscreenMode ? 'translateX(-50%)' : 'none',
-                      zIndex: isFullscreenMode ? 2100 : 'auto',
-                      background: isFullscreenMode ? 'rgba(0,0,0,0.5)' : 'transparent',
-                      borderRadius: isFullscreenMode ? '8px' : 0,
-                    }}>
-                    <Button 
-                      startIcon={<ArrowBackIcon />} 
-                      color={isFullscreenMode ? "secondary" : "primary"}
-                      variant={isFullscreenMode ? "contained" : "text"}
-                      onClick={handleGoBack}
-                      // Disable if connecting, but allow "Stop Session" if connected
-                      disabled={connectionStatus === 'connecting'} 
-                    >
-                      {isSessionActive ? "Stop Session" : "Go Back"}
-                    </Button>
-                    <IconButton 
-                      onClick={() => setIsFullscreenMode(!isFullscreenMode)} 
-                      color={isFullscreenMode ? "secondary" : "default"}
-                      sx={{ ml: 2 }}
-                    >
-                      {isFullscreenMode ? <FullscreenExitIcon /> : <FullscreenIcon />}
-                    </IconButton>
-                    </Box>
-                  </Paper>
-                </Grid>
-                {/* --- TRANSCRIPTION PANEL --- */}
-            <Grid 
-              item 
-              xs={12} 
+                    {isSessionActive ? "Stop Session" : "Go Back"}
+                  </Button>
+                  <IconButton
+                    onClick={() => setIsFullscreenMode(!isFullscreenMode)}
+                    color={isFullscreenMode ? "secondary" : "default"}
+                    sx={{ ml: 2 }}
+                  >
+                    {isFullscreenMode ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                  </IconButton>
+                </Box>
+              </Paper>
+            </Grid>
+            {/* --- TRANSCRIPTION PANEL --- */}
+            <Grid
+              item
+              xs={12}
               md={isFullscreenMode ? 12 : 6}
               sx={{
                 // Hide panel in fullscreen if there is no text
                 display: isFullscreenMode && !answers && !question && chatHistory.length === 0 ? 'none' : 'block',
                 height: isFullscreenMode ? 'auto' : '750px',
-                
+
                 // --- Fullscreen Overlay Panel Styles ---
                 position: isFullscreenMode ? 'fixed' : 'relative',
                 top: isFullscreenMode ? '50%' : 'auto',
@@ -228,14 +230,14 @@ const LiveInterviewPage = () => {
                 zIndex: isFullscreenMode ? 2050 : 'auto',
               }}
             >
-              <Paper 
+              <Paper
                 elevation={isFullscreenMode ? 12 : 3} // More shadow in fullscreen
-                sx={{ 
-                  height: isFullscreenMode ? 'auto' : '100%', 
+                sx={{
+                  height: isFullscreenMode ? 'auto' : '100%',
                   maxHeight: isFullscreenMode ? '80vh' : '100%',
-                  display: 'flex', 
+                  display: 'flex',
                   flexDirection: 'column',
-                  
+
                   // --- Glass effect for fullscreen ---
                   background: isFullscreenMode ? 'rgba(0, 0, 0, 0.45)' : 'background.paper',
                   borderRadius: isFullscreenMode ? '16px' : 'inherit',
@@ -250,13 +252,14 @@ const LiveInterviewPage = () => {
                   chatHistory={chatHistory}
                   handleClearHistory={handleClearHistory}
                   isFullscreen={isFullscreenMode} // <-- Pass state
+                  turnStatus={turnStatus}
                 />
               </Paper>
             </Grid>
           </Grid>
         </Box>
       )}
-        </Box>
+    </Box>
   );
 };
 
