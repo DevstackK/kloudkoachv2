@@ -3,13 +3,13 @@ import { Box, Button, CircularProgress, useTheme, Typography } from "@mui/materi
 import "./ExamPrepOpenAI.css";
 import { useSession } from '../../../../context/SessionContext';
 
-const OPENAI_KEY=process.env.REACT_APP_OPENAI_API_KEY;
+const OPENAI_KEY = process.env.REACT_APP_OPENAI_API_KEY;
 
 const RTC_CONFIGURATION = {
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-    ],
-  };
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+  ],
+};
 
 const ExamPrepOpenAI = forwardRef(({
   answers,
@@ -245,7 +245,7 @@ const ExamPrepOpenAI = forwardRef(({
   };
 
   const sendSDPToServer = async (pc, offer, clientSecret) => {
-    const url = "https://ks-ai-gpt-realtime-resource.openai.azure.com/openai/v1/realtime?model=realtime";
+    const url = "https://info-mqpcgdu1-eastus2.cognitiveservices.azure.com/openai/v1/realtime?model=gptrealtime";
 
     const response = await fetch(url, {
       method: "POST",
@@ -279,7 +279,7 @@ const ExamPrepOpenAI = forwardRef(({
     setOutputText('');
     setAnswers('');
     setQuestion('');
-  };  
+  };
 
   const handleOpenAIEvent = async (event) => {
     const message = JSON.parse(event.data);
@@ -288,7 +288,7 @@ const ExamPrepOpenAI = forwardRef(({
     switch (type) {
       case "response.output_audio_transcript.delta":
         try {
-            setOutputText(prev => {
+          setOutputText(prev => {
             const newText = prev + (message.delta || "");
             setAnswers(newText);
             answersRef.current = newText;
@@ -299,12 +299,12 @@ const ExamPrepOpenAI = forwardRef(({
           setAnswers("Error processing transcript");
         }
         break;
-        case "response.output_item.done":
-          handleDone();
-          break;
+      case "response.output_item.done":
+        handleDone();
+        break;
       case "conversation.item.input_audio_transcription.completed":
         try {
-            setInputText(prev => {
+          setInputText(prev => {
             const newText = prev + (message.transcript || "");
             setQuestion(newText);
             questionRef.current = newText;
@@ -337,30 +337,30 @@ const ExamPrepOpenAI = forwardRef(({
       setDataChannel(null);
       console.log("Disconnecting data channel");
     }
-    
+
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
       console.log("Disconnecting local audio stream");
     }
-    
+
     if (animationFrameIdRef.current) {
       cancelAnimationFrame(animationFrameIdRef.current);
       console.log("Disconnecting audio visualization");
     }
-    
+
     if (audioContextRef.current) {
       try {
-      if (audioContextRef.current.state !== 'closed' && audioContextRef.current.state !== 'closing') {
-        audioContextRef.current.close();
-        console.log("AudioContext closed successfully");
-      } else {
-        console.log("AudioContext already closed or closing");
+        if (audioContextRef.current.state !== 'closed' && audioContextRef.current.state !== 'closing') {
+          audioContextRef.current.close();
+          console.log("AudioContext closed successfully");
+        } else {
+          console.log("AudioContext already closed or closing");
+        }
+      } catch (error) {
+        console.warn("Error closing AudioContext:", error);
       }
-    } catch (error) {
-      console.warn("Error closing AudioContext:", error);
-    }
-    audioContextRef.current = null;
+      audioContextRef.current = null;
     }
     setConnectStatus("notConnect");
     setListening(refreshListeningStatus());
@@ -402,7 +402,7 @@ const ExamPrepOpenAI = forwardRef(({
 
       {connectStatus === "connected" ? (
         <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
-          {connectStatus === 'connected' && <Typography variant="caption" color="text.secondary" sx={{mt: 1}}>Listening...</Typography>}
+          {connectStatus === 'connected' && <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>Listening...</Typography>}
           <Button
             variant="contained"
             color="primary"
