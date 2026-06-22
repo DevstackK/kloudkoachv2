@@ -297,7 +297,7 @@ const InterviewPrepOpenAI = forwardRef(({
         });
       }
 
-      const baseUrl = "https://ks-ai-gpt-realtime-resource.openai.azure.com/openai/v1/realtime?model=realtime";
+      const baseUrl = "https://info-mqpcgdu1-eastus2.cognitiveservices.azure.com/openai/v1/realtime?model=gptrealtime";
       console.log(`[InterviewPrep] → Sending SDP offer (${Date.now() - t0}ms)`);
       const sdpResponse = await fetch(baseUrl, {
         method: "POST",

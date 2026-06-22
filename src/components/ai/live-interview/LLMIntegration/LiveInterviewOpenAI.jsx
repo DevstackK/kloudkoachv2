@@ -313,7 +313,7 @@ const LiveInterviewOpenAI = forwardRef(({
         });
       }
 
-      const baseUrl = "https://ks-ai-gpt-realtime-resource.openai.azure.com/openai/v1/realtime?model=realtime";
+      const baseUrl = "https://info-mqpcgdu1-eastus2.cognitiveservices.azure.com/openai/v1/realtime?model=gptrealtime";
       console.log(`[LiveInterview] → Sending SDP offer (${Date.now() - t0}ms)`);
       const sdpResponse = await fetch(baseUrl, {
         method: "POST",
@@ -377,7 +377,7 @@ const LiveInterviewOpenAI = forwardRef(({
       setConnectStatus("connecting");
 
       // Request screen share ONLY ONCE
-      const stream = await navigator.mediaDevices.getDisplayMedia({ 
+      const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         // Apply the same noise reduction constraints to the system/tab audio being shared
         audio: {
@@ -386,7 +386,7 @@ const LiveInterviewOpenAI = forwardRef(({
           autoGainControl: true,
           channelCount: 1,
           sampleRate: 16000
-        } 
+        }
       });
       mediaStreamRef.current = stream;
       setIsSharing(true);
@@ -507,7 +507,7 @@ const LiveInterviewOpenAI = forwardRef(({
     } else if (type === 'error') {
       if (message.error?.code === 'response_cancel_not_active') {
         // Benign error: We told the AI to stop talking when we started speaking, but it wasn't talking anyway.
-        return; 
+        return;
       }
       console.error(`[LiveInterview] [${elapsed}] ❌ EVENT: ${type}`, message.error);
     } else {
@@ -583,7 +583,7 @@ const LiveInterviewOpenAI = forwardRef(({
         if (message.response?.status === "failed" && message.response?.status_details?.error?.code === "first_output_timeout") {
           console.warn(`[LiveInterview] [${elapsed}] ⏳ Ignored first_output_timeout (user likely paused/stuttered). Continuing to listen...`);
           queueMicrotask(() => setTurnStatus(""));
-          
+
           // Fix: Flush the partial transcript so it doesn't "bundle" up on the next turn
           const qSnap = questionRef.current;
           if (qSnap) {
