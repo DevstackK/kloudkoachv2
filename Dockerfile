@@ -20,5 +20,9 @@ ENV NODE_ENV=production
 COPY --from=build /app/public ./public
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
+# Next.js's standalone output tracing doesn't reliably pick up Prisma's
+# generated WASM query-compiler engine file, so it's missing at runtime
+# unless copied explicitly (ENOENT on query_compiler_bg.wasm otherwise).
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 EXPOSE 3000
 CMD ["node", "server.js"]
