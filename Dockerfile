@@ -1,15 +1,20 @@
 # Not needed for Vercel deployment (Vercel builds this Next.js app natively -
 # see README). This Dockerfile is only for self-hosting elsewhere.
 
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# npm install (not `npm ci`) - the lockfile is generated on ARM64 Windows and
+# is missing some Linux-specific optional dependency entries, so `npm ci`'s
+# strict lockfile-match check fails on this (typically x64 Linux) build
+# target. `npm install` resolves correctly for whatever platform it's
+# actually running on.
+RUN npm install
 COPY . .
 RUN npx prisma generate
 RUN npm run build
 
-FROM node:20-alpine AS run
+FROM node:22-alpine AS run
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/public ./public
