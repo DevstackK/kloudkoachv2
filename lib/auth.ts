@@ -81,9 +81,16 @@ export async function verifyCompanionToken(token: string): Promise<{ sessionId: 
 export const ACCESS_COOKIE_NAME = "kk_access";
 export const REFRESH_COOKIE_NAME = "kk_refresh";
 
+// NODE_ENV === "production" does NOT mean HTTPS is actually available (e.g.
+// a bare-IP VPS deployment with no domain/TLS yet is still "production").
+// Browsers silently drop cookies marked Secure when set over plain HTTP, so
+// basing this on NODE_ENV alone breaks login on exactly that setup. Derive
+// it from whether the app's own configured URL is actually https instead.
+const isHttps = (process.env.NEXT_PUBLIC_APP_URL || "").startsWith("https://");
+
 export const accessCookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  secure: isHttps,
   sameSite: "lax" as const,
   path: "/",
   maxAge: 60 * 15, // 15 minutes
@@ -91,7 +98,7 @@ export const accessCookieOptions = {
 
 export const refreshCookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  secure: isHttps,
   sameSite: "lax" as const,
   path: "/",
   maxAge: 60 * 60 * 24 * 30, // 30 days
