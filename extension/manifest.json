@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Kloud Koach — Live Interview Co-Pilot",
+  "version": "0.1.0",
+  "description": "Live AI interview coaching in a side panel while you're on a call — works on any tab-based meeting platform (Zoom, Meet, Teams, DingTalk web).",
+  "permissions": ["tabCapture", "sidePanel", "storage", "offscreen", "activeTab"],
+  "host_permissions": ["http://localhost:3000/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Kloud Koach"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  }
+}

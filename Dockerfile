@@ -1,17 +1,19 @@
-# Stage 1: Build the React app
-FROM node:18-alpine as build
+# Not needed for Vercel deployment (Vercel builds this Next.js app natively -
+# see README). This Dockerfile is only for self-hosting elsewhere.
+
+FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-ARG STOP=1
 RUN npm ci
 COPY . .
-ARG REACT_APP_API_URL
-ENV REACT_APP_API_URL=$REACT_APP_API_URL
+RUN npx prisma generate
 RUN npm run build
 
-# Stage 2: Serve with Nginx
-FROM nginx:stable-alpine
-COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+FROM node:20-alpine AS run
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app/public ./public
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+EXPOSE 3000
+CMD ["node", "server.js"]

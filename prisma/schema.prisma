@@ -1,0 +1,170 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["queryCompiler", "driverAdapters"]
+  engineType      = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum FeatureType {
+  TimeBased
+  CountBased
+  TokenBased
+}
+
+enum SubscriptionStatus {
+  active
+  incomplete
+  past_due
+  canceled
+}
+
+enum CoachingSessionType {
+  live_interview
+  mock_interview
+  exam_prep
+}
+
+enum CoachingSessionStatus {
+  in_progress
+  completed
+  abandoned
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  name            String
+  stripeCustomerId String?  @unique
+  resetToken      String?
+  resetTokenExpiresAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  subscriptions     Subscription[]
+  resumes           Resume[]
+  courseMaterial    CourseMaterial?
+  coachingSessions  CoachingSession[]
+  extensionDevices  ExtensionDevice[]
+}
+
+model Plan {
+  id            String   @id @default(cuid())
+  name          String
+  priceMonthly  Int      // cents
+  stripePriceId String?
+  priority      Int      @default(0) // higher = shown as "Popular"
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  features      PlanFeature[]
+  subscriptions Subscription[] @relation("PlanSubscriptions")
+  scheduledFor  Subscription[] @relation("ScheduledPlanSubscriptions")
+}
+
+model PlanFeature {
+  id          String      @id @default(cuid())
+  planId      String
+  featureCode String
+  displayName String
+  limitValue  Int         // -1 = unlimited
+  unit        String
+  featureType FeatureType
+  isActive    Boolean     @default(true)
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String
+  planId               String
+  scheduledPlanId      String?
+  stripeSubscriptionId String?            @unique
+  status               SubscriptionStatus @default(active)
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user          User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan          Plan  @relation("PlanSubscriptions", fields: [planId], references: [id])
+  scheduledPlan Plan? @relation("ScheduledPlanSubscriptions", fields: [scheduledPlanId], references: [id])
+
+  @@index([userId])
+}
+
+model Resume {
+  id             String   @id @default(cuid())
+  userId         String
+  rawText        String
+  structuredData Json?
+  fileName       String
+  fileType       String
+  isActive       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model CourseMaterial {
+  userId    String   @id
+  text      String
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CoachingSession {
+  id              String                 @id @default(cuid())
+  userId          String
+  type            CoachingSessionType
+  jobRole         String?
+  jobDescription  String?
+  status          CoachingSessionStatus  @default(in_progress)
+  startedAt       DateTime               @default(now())
+  endedAt         DateTime?
+  durationMinutes Int?
+  averageScore    Float?
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interactions InteractionRecord[]
+
+  @@index([userId])
+}
+
+model InteractionRecord {
+  id               String   @id @default(cuid())
+  sessionId        String
+  questionText     String
+  userAnswerText   String?
+  suggestedAnswer  String?
+  rating           Int?
+  feedback         String?
+  createdAt        DateTime @default(now())
+
+  session CoachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+model ExtensionDevice {
+  id           String   @id @default(cuid())
+  userId       String
+  deviceToken  String   @unique
+  label        String?
+  lastSeenAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Kloud Koach</title>
+    <style>
+      body {
+        width: 280px;
+        margin: 0;
+        padding: 16px;
+        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: linear-gradient(135deg, #4a148c 0%, #7b1fa2 100%);
+        color: white;
+      }
+      h1 {
+        font-size: 16px;
+        margin: 0 0 4px;
+      }
+      p {
+        font-size: 12px;
+        opacity: 0.85;
+        margin: 0 0 16px;
+      }
+      input {
+        width: 100%;
+        padding: 9px;
+        border-radius: 10px;
+        border: none;
+        margin-bottom: 8px;
+        font-size: 12px;
+        font-family: monospace;
+      }
+      button {
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        margin-bottom: 8px;
+      }
+      #connectBtn,
+      #startBtn {
+        background: linear-gradient(90deg, #7b1fa2 0%, #ad1457 100%);
+        color: white;
+      }
+      #stopBtn,
+      #disconnectBtn {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+      }
+      #status {
+        font-size: 11px;
+        opacity: 0.75;
+        text-align: center;
+        margin-top: 8px;
+      }
+      a {
+        color: #ffd7e8;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Kloud Koach</h1>
+    <p>Live interview co-pilot for the current tab.</p>
+
+    <div id="connectPanel">
+      <input id="codeInput" placeholder="Paste pairing code" />
+      <button id="connectBtn">Connect Account</button>
+      <div id="status">
+        <a href="#" id="openPairingLink">Get a pairing code &rarr;</a>
+      </div>
+    </div>
+
+    <div id="controlPanel" style="display: none">
+      <button id="startBtn">Start Live Co-Pilot</button>
+      <button id="stopBtn">Stop</button>
+      <button id="disconnectBtn">Disconnect Account</button>
+      <div id="status2"></div>
+    </div>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,36 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUserId } from "@/lib/session";
+import { withCors, corsPreflight } from "@/lib/cors";
+
+const schema = z.object({
+  type: z.enum(["live_interview", "mock_interview"]),
+  jobRole: z.string().min(1),
+  jobDescription: z.string().optional(),
+});
+
+export async function OPTIONS(req: NextRequest) {
+  return corsPreflight(req);
+}
+
+export async function POST(req: NextRequest) {
+  const userId = await getCurrentUserId(req);
+  if (!userId) return withCors(req, NextResponse.json({ success: false, message: "Not authenticated" }, { status: 401 }));
+
+  const body = await req.json().catch(() => null);
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) return withCors(req, NextResponse.json({ success: false, message: "Invalid input" }, { status: 400 }));
+
+  const session = await prisma.coachingSession.create({
+    data: {
+      userId,
+      type: parsed.data.type,
+      jobRole: parsed.data.jobRole,
+      jobDescription: parsed.data.jobDescription,
+      status: "in_progress",
+    },
+  });
+
+  return withCors(req, NextResponse.json({ success: true, data: { sessionId: session.id } }));
+}
