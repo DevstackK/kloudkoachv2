@@ -221,8 +221,12 @@ export default function TermsPage() {
               <SecurityIcon color="primary" /> 10. Privacy &amp; Data Protection
             </Typography>
             <Typography variant="body2" color="text.secondary" paragraph>
-              Use of the Service is subject to our Privacy Policy. You must not record, transcribe, or process an
-              interviewer&apos;s voice or data without their explicit consent.
+              Use of the Service is subject to our{" "}
+              <Typography component="a" href="/privacy" color="primary" sx={{ textDecoration: "underline" }}>
+                Privacy Policy
+              </Typography>
+              . You must not record, transcribe, or process an interviewer&apos;s voice or data without their
+              explicit consent.
             </Typography>
           </Box>
 

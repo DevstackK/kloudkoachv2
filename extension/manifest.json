@@ -4,14 +4,26 @@
   "version": "0.1.0",
   "description": "Live AI interview coaching in a side panel while you're on a call — works on any tab-based meeting platform (Zoom, Meet, Teams, DingTalk web).",
   "permissions": ["tabCapture", "sidePanel", "storage", "offscreen", "activeTab"],
-  "host_permissions": ["http://localhost:3000/*", "https://*/*"],
+  "host_permissions": ["http://localhost:3000/*", "https://kloudkoachv2.vercel.app/*"],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Kloud Koach"
+    "default_title": "Kloud Koach",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "side_panel": {
     "default_path": "sidepanel.html"
