@@ -2,7 +2,7 @@
 // offscreen, side panel). Change DEFAULT_API_BASE_URL before publishing to
 // the Chrome Web Store, or set it once via the popup (persisted in
 // chrome.storage.local so every context picks it up).
-export const DEFAULT_API_BASE_URL = "http://localhost:3000";
+export const DEFAULT_API_BASE_URL = "https://kloudkoachv2.vercel.app";
 
 export async function getApiBaseUrl() {
   const { apiBaseUrl } = await chrome.storage.local.get("apiBaseUrl");

@@ -1,10 +1,5 @@
-import ComingSoon from "@/components/ComingSoon";
+import { redirect } from "next/navigation";
 
 export default function LiveInterviewPage() {
-  return (
-    <ComingSoon
-      title="Live Interview Co-Pilot"
-      phaseNote="The live, tab-audio-powered coaching pipeline lands in Phase 4 of the rebuild."
-    />
-  );
+  redirect("/dashboard/extension");
 }

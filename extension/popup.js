@@ -1,4 +1,4 @@
-import { getApiBaseUrl, getDeviceToken, setDeviceToken, clearDeviceToken } from "./config.js";
+import { getApiBaseUrl, setApiBaseUrl, getDeviceToken, setDeviceToken, clearDeviceToken } from "./config.js";
 
 const connectPanel = document.getElementById("connectPanel");
 const controlPanel = document.getElementById("controlPanel");
@@ -9,12 +9,23 @@ const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 const disconnectBtn = document.getElementById("disconnectBtn");
 const status2 = document.getElementById("status2");
+const apiUrlInput = document.getElementById("apiUrlInput");
+const saveApiUrlBtn = document.getElementById("saveApiUrlBtn");
+const apiUrlStatus = document.getElementById("apiUrlStatus");
 
 async function render() {
   const token = await getDeviceToken();
   connectPanel.style.display = token ? "none" : "block";
   controlPanel.style.display = token ? "block" : "none";
+  apiUrlInput.value = await getApiBaseUrl();
 }
+
+saveApiUrlBtn.addEventListener("click", async () => {
+  const url = apiUrlInput.value.trim().replace(/\/+$/, "");
+  if (!url) return;
+  await setApiBaseUrl(url);
+  apiUrlStatus.textContent = "Saved. Reconnect the account for this server.";
+});
 
 openPairingLink.addEventListener("click", async (e) => {
   e.preventDefault();
