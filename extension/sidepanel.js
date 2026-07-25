@@ -95,7 +95,19 @@ startBtn.addEventListener("click", async () => {
     phoneLinkRow.style.display = "block";
     setStatus("connecting");
 
-    chrome.runtime.sendMessage({ type: "START_CAPTURE" });
+    // Without a callback here, any failure background.js reports via
+    // sendResponse() (bad/uncapturable tab, tabCapture permission error,
+    // etc.) was silently discarded - the panel just sat on "connecting"
+    // forever with no visible error.
+    chrome.runtime.sendMessage({ type: "START_CAPTURE" }, (response) => {
+      if (chrome.runtime.lastError) {
+        showError(chrome.runtime.lastError.message);
+        return;
+      }
+      if (!response?.ok) {
+        showError(response?.error || "Could not start tab capture.");
+      }
+    });
   } catch (err) {
     showError(err instanceof Error ? err.message : "Could not start session.");
   }
