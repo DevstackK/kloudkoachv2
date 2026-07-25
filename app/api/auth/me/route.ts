@@ -70,6 +70,7 @@ export async function GET(req: NextRequest) {
       id: user.id,
       name: user.name,
       email: user.email,
+      emailVerified: user.emailVerified,
       planName: subscription?.plan.name ?? "Free",
       status: subscription?.status ?? "active",
       usage: {

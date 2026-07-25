@@ -20,6 +20,7 @@ export type AuthUser = {
   id: string;
   name: string;
   email: string;
+  emailVerified: boolean;
   planName: string;
   status: string;
 };
@@ -57,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: json.data.id,
           name: json.data.name,
           email: json.data.email,
+          emailVerified: json.data.emailVerified,
           planName: json.data.planName,
           status: json.data.status,
         });
