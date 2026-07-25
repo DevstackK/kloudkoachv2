@@ -16,6 +16,37 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/**/*": ["./node_modules/.prisma/client/**/*"],
   },
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "microphone=(self), camera=(), geolocation=()" },
+          {
+            key: "Content-Security-Policy",
+            // 'unsafe-inline' on script-src is needed for Next.js's own
+            // inline bootstrap scripts (no nonce plumbing yet) - this still
+            // blocks loading/exfiltrating to any non-self script origin,
+            // which is the more common real-world attack path.
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob:",
+              "font-src 'self' data:",
+              "connect-src 'self' wss://api.deepgram.com https://api.deepgram.com",
+              "frame-src https://checkout.stripe.com https://js.stripe.com",
+              "base-uri 'self'",
+              "form-action 'self'",
+            ].join("; "),
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
