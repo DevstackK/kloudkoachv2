@@ -8,6 +8,9 @@ import {
   REFRESH_COOKIE_NAME,
   accessCookieOptions,
 } from "@/lib/auth";
+import { checkFeatureLimit, type FeatureCode } from "@/lib/planLimits";
+
+const trackedFeatureCodes = new Set<FeatureCode>(["MOCK_INTERVIEW", "LIVE_INTERVIEW"]);
 
 export async function GET(req: NextRequest) {
   let payload = null;
@@ -50,6 +53,17 @@ export async function GET(req: NextRequest) {
 
   const subscription = user.subscriptions[0] ?? null;
 
+  const features = await Promise.all(
+    (subscription?.plan.features ?? []).map(async (f) => {
+      if (trackedFeatureCodes.has(f.featureCode as FeatureCode)) {
+        const check = await checkFeatureLimit(user.id, f.featureCode as FeatureCode);
+        return { featureCode: f.featureCode, displayName: f.displayName, limit: f.limitValue, remaining: check.remaining, isActive: f.isActive };
+      }
+      // Usage tracking for other feature codes lands in a later phase.
+      return { featureCode: f.featureCode, displayName: f.displayName, limit: f.limitValue, remaining: f.limitValue, isActive: f.isActive };
+    })
+  );
+
   const res = NextResponse.json({
     success: true,
     data: {
@@ -61,14 +75,7 @@ export async function GET(req: NextRequest) {
       usage: {
         subscriptionStatus: subscription?.status ?? "active",
         planName: subscription?.plan.name ?? "Free",
-        features:
-          subscription?.plan.features.map((f) => ({
-            featureCode: f.featureCode,
-            displayName: f.displayName,
-            limit: f.limitValue,
-            remaining: f.limitValue, // usage tracking wired up in a later phase
-            isActive: f.isActive,
-          })) ?? [],
+        features,
       },
     },
   });
