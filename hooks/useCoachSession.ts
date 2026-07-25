@@ -14,6 +14,9 @@ type StartParams = {
   type: "mock_interview" | "live_interview";
   jobRole: string;
   jobDescription?: string;
+  // "tab" captures another shared browser tab's audio (e.g. a Meet/Zoom-web
+  // call) via the Screen Capture API, for the extension-free live co-pilot.
+  audioSource?: "mic" | "tab";
 };
 
 export function useCoachSession() {
@@ -28,6 +31,7 @@ export function useCoachSession() {
   const micStreamRef = React.useRef<MediaStream | null>(null);
   const sessionIdRef = React.useRef<string | null>(null);
   const lastQuestionRef = React.useRef<string>("");
+  const stopRef = React.useRef<() => void>(() => {});
 
   const respondTo = React.useCallback(async (question: string) => {
     const currentSessionId = sessionIdRef.current;
@@ -114,7 +118,26 @@ export function useCoachSession() {
           throw new Error(tokenJson.message || "Could not start live transcription.");
         }
 
-        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        let micStream: MediaStream;
+        if (params.audioSource === "tab") {
+          // getDisplayMedia requires requesting video; Chrome only exposes
+          // "share tab audio" alongside a tab/window/screen picker, not as
+          // an audio-only capture. Drop the video track immediately after -
+          // only the audio track is ever recorded or sent anywhere.
+          const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+          displayStream.getVideoTracks().forEach((t) => t.stop());
+          if (displayStream.getAudioTracks().length === 0) {
+            displayStream.getTracks().forEach((t) => t.stop());
+            throw new Error('No audio captured — check "Share tab audio" when picking a tab to share.');
+          }
+          micStream = displayStream;
+          // The browser's own "Stop sharing" bar bypasses our End Session
+          // button entirely - listen for the track ending so the session
+          // still closes out cleanly (DB status, WS, recorder) either way.
+          micStream.getAudioTracks()[0]?.addEventListener("ended", () => stopRef.current());
+        } else {
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
         micStreamRef.current = micStream;
 
         const ws = new WebSocket(
@@ -191,6 +214,8 @@ export function useCoachSession() {
     }
     sessionIdRef.current = null;
   }, []);
+
+  stopRef.current = stop;
 
   React.useEffect(() => () => stop(), [stop]);
 
