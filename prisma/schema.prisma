@@ -40,11 +40,8 @@ model User {
   passwordHash    String
   name            String
   stripeCustomerId String?  @unique
-  emailVerified   Boolean   @default(false)
-  otpCodeHash     String?
-  otpPurpose      String?   // "verify_email" | "reset_password"
-  otpExpiresAt    DateTime?
-  otpAttempts     Int       @default(0)
+  resetToken      String?
+  resetTokenExpiresAt DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

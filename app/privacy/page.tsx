@@ -104,7 +104,6 @@ export default function PrivacyPage() {
                 "Anthropic (Claude API) - processes transcribed questions and your resume/job context to generate suggested answers.",
                 "Deepgram - processes streamed audio to produce a live text transcript.",
                 "Stripe - processes payments and manages subscriptions; we never see or store your card details.",
-                "SendGrid - delivers account verification and password-reset emails.",
                 "Supabase - hosts our production database (encrypted at rest).",
                 "Vercel - hosts our web application and API.",
               ].map((text) => (
