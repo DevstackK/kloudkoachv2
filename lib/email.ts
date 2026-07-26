@@ -1,30 +1,32 @@
-const SENDGRID_API_URL = "https://api.sendgrid.com/v3/mail/send";
+const SMTP2GO_API_URL = "https://api.smtp2go.com/v3/email/send";
 
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
-  const apiKey = process.env.SENDGRID_API_KEY;
-  const from = process.env.SENDGRID_FROM_EMAIL;
+  const apiKey = process.env.SMTP2GO_API_KEY;
+  const sender = process.env.SMTP2GO_SENDER_EMAIL;
 
-  if (!apiKey || !from) {
+  if (!apiKey || !sender) {
     // Mirrors the pre-existing forgot-password TODO: no provider configured
     // yet, so log instead of silently dropping the email in local dev.
-    console.log(`[dev] Email to ${to} (SENDGRID_API_KEY/SENDGRID_FROM_EMAIL not set):\nSubject: ${subject}\n${html}`);
+    console.log(`[dev] Email to ${to} (SMTP2GO_API_KEY/SMTP2GO_SENDER_EMAIL not set):\nSubject: ${subject}\n${html}`);
     return;
   }
 
-  const res = await fetch(SENDGRID_API_URL, {
+  const res = await fetch(SMTP2GO_API_URL, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: { "X-Smtp2go-Api-Key": apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: to }] }],
-      from: { email: from, name: "Kloud Koach" },
+      sender: `Kloud Koach <${sender}>`,
+      to: [to],
       subject,
-      content: [{ type: "text/html", value: html }],
+      html_body: html,
     }),
   });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`SendGrid send failed (${res.status}): ${text}`);
+  const json = await res.json().catch(() => null);
+  // SMTP2GO returns 200 even for some rejected requests - the real result
+  // is in data.succeeded/failed, so check that rather than trust res.ok alone.
+  if (!res.ok || !json?.data || json.data.succeeded !== 1) {
+    throw new Error(`SMTP2GO send failed (${res.status}): ${JSON.stringify(json)}`);
   }
 }
 
