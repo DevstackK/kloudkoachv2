@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUserId } from "@/lib/session";
+import { getCurrentUserId, getCompanionSessionId } from "@/lib/session";
 import { anthropic, cachedSystem, pickCoachModel } from "@/lib/anthropic";
 import { rateLimit } from "@/lib/rateLimit";
 import { logAiCall } from "@/lib/aiLogger";
@@ -11,8 +11,11 @@ export async function OPTIONS(req: NextRequest) {
   return corsPreflight(req);
 }
 
+// sessionId is optional here specifically for the companion (phone) path -
+// the companion token itself is scoped to one session server-side, so the
+// client never needs to (and shouldn't have to) know or send the raw id.
 const schema = z.object({
-  sessionId: z.string().min(1),
+  sessionId: z.string().min(1).optional(),
   question: z.string().min(1).max(2000),
 });
 
@@ -25,14 +28,16 @@ const TOTAL_HISTORY_TURNS = 8;
 const OLD_ANSWER_SUMMARY_CHARS = 120;
 
 export async function POST(req: NextRequest) {
-  const userId = await getCurrentUserId(req);
-  if (!userId) {
+  const authedUserId = await getCurrentUserId(req);
+  const companionSessionId = authedUserId ? null : await getCompanionSessionId(req);
+  if (!authedUserId && !companionSessionId) {
     return new Response(JSON.stringify({ success: false, message: "Not authenticated" }), { status: 401, headers: corsHeaders(req) });
   }
 
   // Live turns are the highest-frequency Claude call in the app - cap to
-  // ~20/min/user so a stuck client or malicious script can't run up cost.
-  const limit = rateLimit(`coach:${userId}`, 20, 60_000);
+  // ~20/min/user (or /session, on the companion path) so a stuck client or
+  // malicious script can't run up cost.
+  const limit = rateLimit(`coach:${authedUserId ?? `companion:${companionSessionId}`}`, 20, 60_000);
   if (!limit.allowed) {
     return new Response(JSON.stringify({ success: false, message: "Too many requests, slow down." }), {
       status: 429,
@@ -45,12 +50,19 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return new Response(JSON.stringify({ success: false, message: "Invalid input" }), { status: 400, headers: corsHeaders(req) });
   }
-  const { sessionId, question } = parsed.data;
+  const { question } = parsed.data;
+  // A companion token is bound to exactly one session - trust that over
+  // whatever sessionId (if any) the client body claims.
+  const sessionId = companionSessionId ?? parsed.data.sessionId;
+  if (!sessionId) {
+    return new Response(JSON.stringify({ success: false, message: "Invalid input" }), { status: 400, headers: corsHeaders(req) });
+  }
 
   const session = await prisma.coachingSession.findUnique({ where: { id: sessionId } });
-  if (!session || session.userId !== userId) {
+  if (!session || (authedUserId && session.userId !== authedUserId)) {
     return new Response(JSON.stringify({ success: false, message: "Session not found" }), { status: 404, headers: corsHeaders(req) });
   }
+  const userId = session.userId;
 
   const [user, activeResume, priorTurns] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { verifyAccessToken, ACCESS_COOKIE_NAME } from "@/lib/auth";
+import { verifyAccessToken, verifyCompanionToken, ACCESS_COOKIE_NAME } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -28,4 +28,22 @@ export async function getCurrentUserId(req: NextRequest): Promise<string | null>
   }
 
   return null;
+}
+
+/**
+ * Resolves a companion-token bearer (the short-lived, single-session link
+ * opened on a phone via "Continue on Mobile") to the CoachingSession it's
+ * scoped to. Distinct from getCurrentUserId's device-token Bearer path -
+ * this token grants no account access, only read/write on the one session
+ * it was minted for.
+ */
+export async function getCompanionSessionId(req: NextRequest): Promise<string | null> {
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) return null;
+
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (!token) return null;
+
+  const payload = await verifyCompanionToken(token);
+  return payload?.sessionId ?? null;
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUserId } from "@/lib/session";
+import { getCurrentUserId, getCompanionSessionId } from "@/lib/session";
 import { getDeepgramClientKey } from "@/lib/deepgram";
 import { rateLimit } from "@/lib/rateLimit";
 import { withCors, corsPreflight } from "@/lib/cors";
@@ -10,9 +10,12 @@ export async function OPTIONS(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const userId = await getCurrentUserId(req);
-  if (!userId) return withCors(req, NextResponse.json({ success: false, message: "Not authenticated" }, { status: 401 }));
+  const companionSessionId = userId ? null : await getCompanionSessionId(req);
+  if (!userId && !companionSessionId) {
+    return withCors(req, NextResponse.json({ success: false, message: "Not authenticated" }, { status: 401 }));
+  }
 
-  const limit = rateLimit(`deepgram-token:${userId}`, 10, 60_000);
+  const limit = rateLimit(`deepgram-token:${userId ?? `companion:${companionSessionId}`}`, 10, 60_000);
   if (!limit.allowed) {
     return withCors(req, NextResponse.json({ success: false, message: "Too many requests, please wait a moment." }, { status: 429 }));
   }

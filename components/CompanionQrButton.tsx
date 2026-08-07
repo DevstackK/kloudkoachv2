@@ -42,8 +42,9 @@ export default function CompanionQrButton({ sessionId }: { sessionId: string | n
         <DialogContent>
           <Box display="flex" flexDirection="column" alignItems="center" gap={2} pb={2}>
             <Typography variant="body2" color="text.secondary" align="center">
-              Open your phone&apos;s camera and scan this code to see live answers on your phone screen, separate
-              from whatever you&apos;re sharing on your laptop.
+              Open your phone&apos;s camera and scan this code to see live answers on your phone, separate from
+              whatever you&apos;re sharing on your laptop. If you need to share your screen, tap &quot;Take Over
+              Listening&quot; on the phone page to have it listen and coach you directly.
             </Typography>
             {error && (
               <Typography variant="body2" color="error">
