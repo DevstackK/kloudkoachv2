@@ -177,6 +177,12 @@ export default function CompanionPage() {
             </Box>
           )}
 
+          {capture.isPaused && (
+            <Typography variant="caption" sx={{ opacity: 0.45, textAlign: "center", mt: 1 }}>
+              Paused while you answer — not listening for a new question yet.
+            </Typography>
+          )}
+
           {earlierTurns.map((turn, i) => (
             <Box key={i} sx={{ p: 2, mb: 1.5, borderRadius: "12px", bgcolor: "rgba(255,255,255,0.06)" }}>
               <Typography variant="body2" sx={{ opacity: 0.7, fontWeight: 600, mb: 0.5 }}>
