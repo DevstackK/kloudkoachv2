@@ -168,9 +168,6 @@ export default function LiveInterviewPage() {
               backdropFilter: transparentMode ? "blur(10px)" : "none",
             }}
           >
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              {latestTurn.question}
-            </Typography>
             <Typography variant="h6" color="primary.main" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.5, fontWeight: 500 }}>
               {latestTurn.answer}
               {latestTurn.isStreaming && <CircularProgress size={14} sx={{ ml: 1 }} />}
@@ -194,9 +191,6 @@ export default function LiveInterviewPage() {
               backdropFilter: transparentMode ? "blur(6px)" : "none",
             }}
           >
-            <Typography variant="body2" fontWeight={600} color="text.secondary" gutterBottom>
-              {turn.question}
-            </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-wrap" }}>
               {turn.answer}
             </Typography>

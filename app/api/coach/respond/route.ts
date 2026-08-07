@@ -22,10 +22,13 @@ const schema = z.object({
 // How many prior turns to send in full (recent context matters most for a
 // natural follow-up). Older turns are summarized instead of sent verbatim -
 // full history would otherwise re-cost every turn since only the system
-// block is prompt-cached, not the messages array.
-const FULL_HISTORY_TURNS = 4;
-const TOTAL_HISTORY_TURNS = 8;
-const OLD_ANSWER_SUMMARY_CHARS = 120;
+// block is prompt-cached, not the messages array. Kept small deliberately:
+// every turn of history here is uncached input tokens Claude has to read
+// before it can start answering, so trimming this directly cuts
+// time-to-first-token on the highest-frequency call in the app.
+const FULL_HISTORY_TURNS = 2;
+const TOTAL_HISTORY_TURNS = 4;
+const OLD_ANSWER_SUMMARY_CHARS = 100;
 
 export async function POST(req: NextRequest) {
   const authedUserId = await getCurrentUserId(req);
@@ -82,7 +85,8 @@ export async function POST(req: NextRequest) {
     // miss, so keep it tight - full-fidelity resume text is only needed
     // for the one-time parsing call, not every coaching turn.
     activeResume ? `Candidate's resume:\n${activeResume.rawText.slice(0, 3000)}` : null,
-    "Answer as the candidate would, in first person, confidently and concisely (2-4 sentences unless the question clearly needs more). " +
+    "Answer as the candidate would, in first person - confident, natural, and SHORT (1-3 sentences; only go longer if the question genuinely can't be answered in fewer). " +
+      "Output ONLY the spoken answer itself - never restate, paraphrase, or acknowledge the question first (no \"That's a great question about...\", no repeating any part of it back). " +
       "Ground answers in the resume/job context where relevant. Never mention that you are an AI or that this is generated.",
   ]
     .filter(Boolean)
@@ -113,7 +117,10 @@ export async function POST(req: NextRequest) {
       try {
         claudeStream = anthropic.messages.stream({
           model,
-          max_tokens: 500,
+          // Lowered from 500: answers are meant to be 1-3 spoken sentences,
+          // and a smaller cap means less worst-case generation time on the
+          // highest-frequency call in the app.
+          max_tokens: 300,
           system: cachedSystem(systemPromptText),
           messages,
         });

@@ -161,9 +161,6 @@ export default function CompanionPage() {
 
           {latestTurn ? (
             <Box flex={1} display="flex" flexDirection="column" justifyContent="center">
-              <Typography variant="body2" sx={{ opacity: 0.6, mb: 1.5, lineHeight: 1.4 }}>
-                {latestTurn.question}
-              </Typography>
               <Typography sx={{ fontSize: "1.15rem", fontWeight: 600, lineHeight: 1.5, color: "#e1bee7" }}>
                 {latestTurn.answer}
                 {latestTurn.isStreaming && <CircularProgress size={14} sx={{ ml: 1.5, color: "#e1bee7" }} />}
@@ -185,10 +182,7 @@ export default function CompanionPage() {
 
           {earlierTurns.map((turn, i) => (
             <Box key={i} sx={{ p: 2, mb: 1.5, borderRadius: "12px", bgcolor: "rgba(255,255,255,0.06)" }}>
-              <Typography variant="body2" sx={{ opacity: 0.7, fontWeight: 600, mb: 0.5 }}>
-                {turn.question}
-              </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.6 }}>
+              <Typography variant="body2" sx={{ opacity: 0.7 }}>
                 {turn.answer}
               </Typography>
             </Box>
@@ -204,9 +198,6 @@ export default function CompanionPage() {
 
           {data?.latest ? (
             <Box flex={1} display="flex" flexDirection="column" justifyContent="center">
-              <Typography variant="body2" sx={{ opacity: 0.6, mb: 1.5, lineHeight: 1.4 }}>
-                {data.latest.question}
-              </Typography>
               <Typography sx={{ fontSize: "1.15rem", fontWeight: 600, lineHeight: 1.5, color: "#e1bee7" }}>
                 {data.latest.answer}
               </Typography>
