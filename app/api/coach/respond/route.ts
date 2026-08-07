@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId, getCompanionSessionId } from "@/lib/session";
-import { anthropic, cachedSystem, pickCoachModel } from "@/lib/anthropic";
+import { anthropic, cachedSystem, CLAUDE_MODEL_FAST } from "@/lib/anthropic";
 import { rateLimit } from "@/lib/rateLimit";
 import { logAiCall } from "@/lib/aiLogger";
 import { corsHeaders, corsPreflight } from "@/lib/cors";
@@ -109,7 +109,11 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   let fullAnswer = "";
   const startedAt = Date.now();
-  const model = pickCoachModel(question);
+  // Sticking to the fast model for every live turn, even "complex" ones -
+  // consistent low latency matters more here than the extra depth Sonnet
+  // gave on harder questions. Revisit pickCoachModel() in lib/anthropic.ts
+  // if that trade-off needs to flip back.
+  const model = CLAUDE_MODEL_FAST;
 
   const stream = new ReadableStream({
     async start(controller) {
