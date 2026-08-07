@@ -164,9 +164,9 @@ export default function CompanionPage() {
               <Typography variant="body2" sx={{ opacity: 0.6, mb: 1.5, lineHeight: 1.4 }}>
                 {latestTurn.question}
               </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 600, lineHeight: 1.45, color: "#e1bee7" }}>
+              <Typography sx={{ fontSize: "1.15rem", fontWeight: 600, lineHeight: 1.5, color: "#e1bee7" }}>
                 {latestTurn.answer}
-                {latestTurn.isStreaming && <CircularProgress size={16} sx={{ ml: 1.5, color: "#e1bee7" }} />}
+                {latestTurn.isStreaming && <CircularProgress size={14} sx={{ ml: 1.5, color: "#e1bee7" }} />}
               </Typography>
             </Box>
           ) : (
@@ -201,7 +201,7 @@ export default function CompanionPage() {
               <Typography variant="body2" sx={{ opacity: 0.6, mb: 1.5, lineHeight: 1.4 }}>
                 {data.latest.question}
               </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 600, lineHeight: 1.45, color: "#e1bee7" }}>
+              <Typography sx={{ fontSize: "1.15rem", fontWeight: 600, lineHeight: 1.5, color: "#e1bee7" }}>
                 {data.latest.answer}
               </Typography>
               {lastSeenAt && (
