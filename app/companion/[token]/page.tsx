@@ -161,7 +161,7 @@ export default function CompanionPage() {
 
           {latestTurn ? (
             <Box flex={1} display="flex" flexDirection="column" justifyContent="center">
-              <Typography sx={{ fontSize: "1.15rem", fontWeight: 600, lineHeight: 1.5, color: "#e1bee7" }}>
+              <Typography sx={{ fontSize: "1.15rem", fontWeight: 600, lineHeight: 1.5, color: "#e1bee7", whiteSpace: "pre-wrap" }}>
                 {latestTurn.answer}
                 {latestTurn.isStreaming && <CircularProgress size={14} sx={{ ml: 1.5, color: "#e1bee7" }} />}
               </Typography>
@@ -182,7 +182,7 @@ export default function CompanionPage() {
 
           {earlierTurns.map((turn, i) => (
             <Box key={i} sx={{ p: 2, mb: 1.5, borderRadius: "12px", bgcolor: "rgba(255,255,255,0.06)" }}>
-              <Typography variant="body2" sx={{ opacity: 0.7 }}>
+              <Typography variant="body2" sx={{ opacity: 0.7, whiteSpace: "pre-wrap" }}>
                 {turn.answer}
               </Typography>
             </Box>
@@ -198,7 +198,7 @@ export default function CompanionPage() {
 
           {data?.latest ? (
             <Box flex={1} display="flex" flexDirection="column" justifyContent="center">
-              <Typography sx={{ fontSize: "1.15rem", fontWeight: 600, lineHeight: 1.5, color: "#e1bee7" }}>
+              <Typography sx={{ fontSize: "1.15rem", fontWeight: 600, lineHeight: 1.5, color: "#e1bee7", whiteSpace: "pre-wrap" }}>
                 {data.latest.answer}
               </Typography>
               {lastSeenAt && (

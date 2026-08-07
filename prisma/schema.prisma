@@ -130,6 +130,10 @@ model CoachingSession {
   jobRole         String?
   jobDescription  String?
   status          CoachingSessionStatus  @default(in_progress)
+  // "prose" | "bullets" - set once at session start, read by every
+  // /api/coach/respond turn so the phone companion (which never picks this
+  // itself) automatically inherits whatever the laptop chose.
+  answerStyle     String                 @default("prose")
   startedAt       DateTime               @default(now())
   endedAt         DateTime?
   durationMinutes Int?

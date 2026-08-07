@@ -14,6 +14,7 @@ const schema = z.object({
   type: z.enum(["live_interview", "mock_interview"]),
   jobRole: z.string().min(1),
   jobDescription: z.string().optional(),
+  answerStyle: z.enum(["prose", "bullets"]).optional(),
 });
 
 export async function OPTIONS(req: NextRequest) {
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
       type: parsed.data.type,
       jobRole: parsed.data.jobRole,
       jobDescription: parsed.data.jobDescription,
+      answerStyle: parsed.data.answerStyle ?? "prose",
       status: "in_progress",
     },
   });

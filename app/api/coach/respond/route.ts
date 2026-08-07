@@ -88,6 +88,9 @@ export async function POST(req: NextRequest) {
     "Answer as the candidate would, in first person - confident, natural, and SHORT (1-3 sentences; only go longer if the question genuinely can't be answered in fewer). " +
       "Output ONLY the spoken answer itself - never restate, paraphrase, or acknowledge the question first (no \"That's a great question about...\", no repeating any part of it back). " +
       "Ground answers in the resume/job context where relevant. Never mention that you are an AI or that this is generated.",
+    session.answerStyle === "bullets"
+      ? "Format the answer as 2-4 short bullet points (start each with \"- \") instead of full sentences - each bullet a quick phrase or clause the candidate can glance at and say naturally, not a complete written sentence. Still no preamble or restating the question."
+      : null,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -121,10 +124,13 @@ export async function POST(req: NextRequest) {
       try {
         claudeStream = anthropic.messages.stream({
           model,
-          // Lowered from 500: answers are meant to be 1-3 spoken sentences,
-          // and a smaller cap means less worst-case generation time on the
-          // highest-frequency call in the app.
-          max_tokens: 300,
+          // Lowered from 500, but not all the way to 300: multi-part
+          // questions ("walk me through your trade-offs and also explain
+          // X...") legitimately need more room, and a hard cutoff mid-
+          // sentence is worse than a slightly longer answer. The system
+          // prompt's "1-3 sentences" instruction does the real length
+          // control for the common case - this is just a safety ceiling.
+          max_tokens: 400,
           system: cachedSystem(systemPromptText),
           messages,
         });

@@ -17,6 +17,9 @@ type StartParams = {
   // "tab" captures another shared browser tab's audio (e.g. a Meet/Zoom-web
   // call) via the Screen Capture API, for the extension-free live co-pilot.
   audioSource?: "mic" | "tab";
+  // Set once at session start; every /api/coach/respond turn reads it back
+  // off the session record, so the phone companion inherits it too.
+  answerStyle?: "prose" | "bullets";
 };
 
 export function useCoachSession() {
