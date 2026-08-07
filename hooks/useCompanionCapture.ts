@@ -113,7 +113,13 @@ export function useCompanionCapture(token: string) {
         cooldownUntilRef.current = Date.now() + cooldownMs;
         setIsPaused(true);
         if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
-        cooldownTimerRef.current = setTimeout(() => setIsPaused(false), cooldownMs);
+        cooldownTimerRef.current = setTimeout(() => {
+          setIsPaused(false);
+          // Whatever the candidate's own voice left in the buffer during
+          // the mute window is stale, self-generated noise - start
+          // listening for the interviewer's actual next question fresh.
+          setInterimTranscript("");
+        }, cooldownMs);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to get a response.");
         // Don't leave the mic permanently muted on a failed request - the
@@ -184,6 +190,11 @@ export function useCompanionCapture(token: string) {
           const alt = msg.channel?.alternatives?.[0];
           if (!alt) return;
           if (msg.is_final) {
+            // While muted, don't even accumulate - otherwise everything
+            // said during the mute window (almost certainly the candidate
+            // reading the answer aloud) silently piles up and fires the
+            // instant the mute lifts, as if it were a fresh question.
+            if (Date.now() < cooldownUntilRef.current) return;
             setInterimTranscript((prev) => `${prev} ${alt.transcript}`.trim());
           }
         } catch {
