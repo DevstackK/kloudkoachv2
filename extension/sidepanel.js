@@ -5,6 +5,8 @@ const controlsEl = document.getElementById("controls");
 const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 const jobRoleInput = document.getElementById("jobRoleInput");
+const styleProseBtn = document.getElementById("styleProseBtn");
+const styleBulletsBtn = document.getElementById("styleBulletsBtn");
 const statusChip = document.getElementById("statusChip");
 const feedEl = document.getElementById("feed");
 const errorBanner = document.getElementById("errorBanner");
@@ -13,6 +15,18 @@ const phoneLinkBtn = document.getElementById("phoneLinkBtn");
 
 let sessionId = null;
 let latestTurnEl = null;
+let answerStyle = "prose";
+
+styleProseBtn.addEventListener("click", () => {
+  answerStyle = "prose";
+  styleProseBtn.classList.add("active");
+  styleBulletsBtn.classList.remove("active");
+});
+styleBulletsBtn.addEventListener("click", () => {
+  answerStyle = "bullets";
+  styleBulletsBtn.classList.add("active");
+  styleProseBtn.classList.remove("active");
+});
 
 function showError(message) {
   errorBanner.textContent = message;
@@ -23,13 +37,15 @@ function setStatus(status) {
   statusChip.textContent = status;
 }
 
-function addTurn(question) {
+function addTurn() {
+  // Answer-only: the question isn't shown, since the interviewer just said
+  // it live a moment ago - echoing it back read as Kloud Koach "repeating
+  // the interview" back at the user.
   document.querySelectorAll(".turn.latest").forEach((el) => el.classList.remove("latest"));
 
   const el = document.createElement("div");
   el.className = "turn latest";
-  el.innerHTML = `<div class="q"></div><div class="a"></div>`;
-  el.querySelector(".q").textContent = question;
+  el.innerHTML = `<div class="a"></div>`;
   feedEl.prepend(el);
   latestTurnEl = el;
   return el;
@@ -40,7 +56,7 @@ async function respondTo(question) {
   const deviceToken = await getDeviceToken();
   if (!sessionId || !deviceToken) return;
 
-  const turnEl = addTurn(question);
+  const turnEl = addTurn();
   const answerEl = turnEl.querySelector(".a");
   setStatus("thinking");
 
@@ -81,7 +97,7 @@ startBtn.addEventListener("click", async () => {
     const sessionRes = await fetch(`${apiBaseUrl}/api/coach/session`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${deviceToken}` },
-      body: JSON.stringify({ type: "live_interview", jobRole }),
+      body: JSON.stringify({ type: "live_interview", jobRole, answerStyle }),
     });
     const sessionJson = await sessionRes.json();
     if (!sessionRes.ok || !sessionJson.success) {

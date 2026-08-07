@@ -33,6 +33,27 @@
         margin-bottom: 10px;
         font-size: 13px;
       }
+      #styleToggle {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      #styleToggle button {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        background: white;
+        color: #444;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      #styleToggle button.active {
+        border-color: #7b1fa2;
+        background: rgba(123, 31, 162, 0.08);
+        color: #7b1fa2;
+        font-weight: 600;
+      }
       #setup button,
       #controls button {
         width: 100%;
@@ -78,11 +99,6 @@
         border-color: #7b1fa2;
         box-shadow: 0 2px 10px rgba(123, 31, 162, 0.15);
       }
-      .turn .q {
-        font-size: 11px;
-        color: #777;
-        margin-bottom: 6px;
-      }
       .turn .a {
         font-size: 14px;
         line-height: 1.5;
@@ -104,6 +120,10 @@
 
     <div id="setup">
       <input id="jobRoleInput" placeholder="Job role (e.g. Senior Frontend Engineer)" />
+      <div id="styleToggle">
+        <button type="button" id="styleProseBtn" class="active">Normal text</button>
+        <button type="button" id="styleBulletsBtn">Bullet points</button>
+      </div>
       <button id="startBtn">Start Listening</button>
     </div>
 

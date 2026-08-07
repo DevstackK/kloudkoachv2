@@ -15,6 +15,7 @@ let mediaRecorder = null;
 let ws = null;
 let interim = "";
 let audioContext = null;
+let lastQuestion = "";
 
 async function startCapture({ streamId, apiBaseUrl, deviceToken }) {
   await stopCapture();
@@ -53,7 +54,10 @@ async function startCapture({ streamId, apiBaseUrl, deviceToken }) {
   }
 
   ws = new WebSocket(
-    "wss://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&interim_results=true&utterance_end_ms=1200&vad_events=true",
+    // 1000ms is Deepgram's hard floor for utterance_end_ms on standard
+    // plans - going lower isn't accepted and wouldn't help anyway, since
+    // interim results only arrive roughly once a second.
+    "wss://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&interim_results=true&utterance_end_ms=1000&vad_events=true",
     ["token", tokenJson.data.key]
   );
 
@@ -70,10 +74,18 @@ async function startCapture({ streamId, apiBaseUrl, deviceToken }) {
     try {
       const msg = JSON.parse(event.data);
       if (msg.type === "UtteranceEnd") {
-        if (interim.trim()) {
-          chrome.runtime.sendMessage({ type: "TRANSCRIPT_QUESTION", text: interim.trim() });
-        }
+        const trimmed = interim.trim();
         interim = "";
+        if (!trimmed) return;
+        // Same guard as the web/phone coaching loops: skip near-empty
+        // fragments ("okay", "mhm") and immediate repeats (interim
+        // acknowledgement sounds Deepgram sometimes segments as their own
+        // utterance) - every skipped call is a wasted Claude request and a
+        // cluttered panel avoided.
+        const normalized = trimmed.toLowerCase().replace(/\s+/g, " ");
+        if (trimmed.split(/\s+/).length < 3 || normalized === lastQuestion) return;
+        lastQuestion = normalized;
+        chrome.runtime.sendMessage({ type: "TRANSCRIPT_QUESTION", text: trimmed });
         return;
       }
       const alt = msg.channel?.alternatives?.[0];
@@ -98,6 +110,7 @@ async function stopCapture() {
   ws?.close();
   ws = null;
   interim = "";
+  lastQuestion = "";
   if (audioContext) {
     audioContext.close().catch(() => {});
     audioContext = null;
