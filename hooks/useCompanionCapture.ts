@@ -129,7 +129,10 @@ export function useCompanionCapture(token: string) {
       micStreamRef.current = micStream;
 
       const ws = new WebSocket(
-        "wss://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&interim_results=true&utterance_end_ms=1200&vad_events=true",
+        // 1000ms is Deepgram's hard floor for utterance_end_ms on standard
+        // plans - going lower isn't accepted and wouldn't help anyway,
+        // since interim results only arrive roughly once a second.
+        "wss://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&interim_results=true&utterance_end_ms=1000&vad_events=true",
         ["token", tokenJson.data.key]
       );
       wsRef.current = ws;
