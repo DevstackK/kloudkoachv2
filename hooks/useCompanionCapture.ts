@@ -54,6 +54,18 @@ export function useCompanionCapture(token: string) {
       }
       lastQuestionRef.current = normalized;
 
+      // Block new utterances for the ENTIRE thinking+streaming window, not
+      // just after it finishes - responses are fast enough now that the
+      // candidate starts reading the answer aloud while it's still
+      // streaming in, and that self-pickup was completely unprotected
+      // before, undoing the post-stream cooldown below.
+      cooldownUntilRef.current = Infinity;
+      setIsPaused(true);
+      if (cooldownTimerRef.current) {
+        clearTimeout(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
+
       setStatus("thinking");
       setTurns((prev) => [...prev, { question, answer: "", isStreaming: true }]);
 
@@ -104,6 +116,11 @@ export function useCompanionCapture(token: string) {
         cooldownTimerRef.current = setTimeout(() => setIsPaused(false), cooldownMs);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to get a response.");
+        // Don't leave the mic permanently muted on a failed request - the
+        // success path is what sets a real cooldown; this just clears the
+        // "Infinity" guard set at the top of this function.
+        cooldownUntilRef.current = 0;
+        setIsPaused(false);
       } finally {
         setStatus((prev) => (prev === "thinking" ? "listening" : prev));
       }
