@@ -5,6 +5,7 @@ import NextLink from "next/link";
 import { Container, Grid, Typography, Card, CardActionArea, CardContent, Box, useTheme, Chip } from "@mui/material";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import ModelTrainingIcon from "@mui/icons-material/ModelTraining";
+import HeadsetMicIcon from "@mui/icons-material/HeadsetMic";
 import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import SchoolIcon from "@mui/icons-material/School";
 import LockIcon from "@mui/icons-material/Lock";
@@ -24,6 +25,13 @@ const options = [
     path: "/dashboard/interview-preparation",
     featureCode: "MOCK_INTERVIEW",
     icon: <ModelTrainingIcon sx={{ fontSize: 40 }} />,
+  },
+  {
+    title: "AI Interviewer",
+    description: "A simulated interviewer asks you real questions out loud - you answer by speaking.",
+    path: "/dashboard/ai-interviewer",
+    featureCode: "MOCK_INTERVIEW",
+    icon: <HeadsetMicIcon sx={{ fontSize: 40 }} />,
   },
   {
     title: "AI Resume Builder",

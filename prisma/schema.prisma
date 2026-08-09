@@ -26,6 +26,7 @@ enum CoachingSessionType {
   live_interview
   mock_interview
   exam_prep
+  ai_interview
 }
 
 enum CoachingSessionStatus {

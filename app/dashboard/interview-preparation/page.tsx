@@ -1,10 +1,26 @@
 "use client";
 
 import * as React from "react";
-import { Container, Paper, Typography, TextField, Button, Box, Chip, CircularProgress, Alert, IconButton, Tooltip } from "@mui/material";
+import {
+  Container,
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  Box,
+  Chip,
+  CircularProgress,
+  Alert,
+  IconButton,
+  Tooltip,
+  ToggleButtonGroup,
+  ToggleButton,
+} from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import NotesIcon from "@mui/icons-material/Notes";
+import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import { useCoachSession } from "@/hooks/useCoachSession";
 import CompanionQrButton from "@/components/CompanionQrButton";
 
@@ -29,6 +45,7 @@ const statusColor: Record<string, "default" | "success" | "warning" | "error" | 
 export default function InterviewPreparationPage() {
   const [jobRole, setJobRole] = React.useState("");
   const [jobDescription, setJobDescription] = React.useState("");
+  const [answerStyle, setAnswerStyle] = React.useState<"prose" | "bullets">("prose");
   const [transparentMode, setTransparentMode] = React.useState(false);
   const { status, interimTranscript, turns, error, sessionId, start, stop } = useCoachSession();
 
@@ -38,7 +55,7 @@ export default function InterviewPreparationPage() {
 
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
-    await start({ type: "mock_interview", jobRole, jobDescription });
+    await start({ type: "mock_interview", jobRole, jobDescription, answerStyle });
   };
 
   if (!isActive && status !== "stopped") {
@@ -70,6 +87,27 @@ export default function InterviewPreparationPage() {
               fullWidth
               placeholder="Paste the job description for more tailored answers (optional)."
             />
+
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                Answer style
+              </Typography>
+              <ToggleButtonGroup
+                value={answerStyle}
+                exclusive
+                fullWidth
+                onChange={(_, value) => value && setAnswerStyle(value)}
+                size="small"
+              >
+                <ToggleButton value="prose" sx={{ textTransform: "none", gap: 1 }}>
+                  <NotesIcon fontSize="small" /> Normal text
+                </ToggleButton>
+                <ToggleButton value="bullets" sx={{ textTransform: "none", gap: 1 }}>
+                  <FormatListBulletedIcon fontSize="small" /> Bullet points
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+
             <Button
               type="submit"
               variant="contained"

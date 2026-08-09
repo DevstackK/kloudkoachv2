@@ -5,13 +5,16 @@ import { getCurrentUserId } from "@/lib/session";
 import { withCors, corsPreflight } from "@/lib/cors";
 import { checkFeatureLimit, type FeatureCode } from "@/lib/planLimits";
 
-const featureCodeForType: Record<"live_interview" | "mock_interview", FeatureCode> = {
+// ai_interview shares the MOCK_INTERVIEW quota - both are practice
+// sessions, not worth a separate PlanFeature row for now.
+const featureCodeForType: Record<"live_interview" | "mock_interview" | "ai_interview", FeatureCode> = {
   live_interview: "LIVE_INTERVIEW",
   mock_interview: "MOCK_INTERVIEW",
+  ai_interview: "MOCK_INTERVIEW",
 };
 
 const schema = z.object({
-  type: z.enum(["live_interview", "mock_interview"]),
+  type: z.enum(["live_interview", "mock_interview", "ai_interview"]),
   jobRole: z.string().min(1),
   jobDescription: z.string().optional(),
   answerStyle: z.enum(["prose", "bullets"]).optional(),
