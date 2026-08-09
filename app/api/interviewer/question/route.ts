@@ -74,16 +74,19 @@ export async function POST(req: NextRequest) {
   const isFinalQuestion = nextQuestionNumber === MAX_QUESTIONS;
 
   const systemPromptText = [
-    `You are a professional, warm but focused interviewer conducting a live mock interview with ${user?.name ?? "a candidate"} for the role: ${session.jobRole}.`,
+    `You are a professional, focused interviewer conducting a live mock interview with ${user?.name ?? "a candidate"} for the role: ${session.jobRole}.`,
     session.jobDescription ? `Job description context:\n${session.jobDescription.slice(0, 1500)}` : null,
-    activeResume ? `Candidate's resume:\n${activeResume.rawText.slice(0, 2000)}` : null,
+    activeResume
+      ? `Candidate's resume:\n${activeResume.rawText.slice(0, 2000)}\n\nUse this resume as your main guide for what to ask - reference specific roles, projects, or skills from it rather than asking generic questions a stranger's resume wouldn't inform.`
+      : null,
     `Ask exactly ONE interview question at a time. This will be question ${nextQuestionNumber} of ${MAX_QUESTIONS} total. ` +
       "Mix behavioral, situational, and role-specific questions - don't repeat the style or topic of an earlier question. " +
+      "Keep it SHORT and to the point - one or two sentences, no long preamble or warm-up chatter. " +
       (answeredCount === 0
-        ? "This is the opening question - start naturally (a brief warm-up like asking them to introduce themselves, or go straight into a relevant question)."
-        : "Briefly acknowledge their previous answer in one short natural phrase (e.g. \"Got it, thanks.\" / \"That's helpful context.\") before asking the next question - don't summarize or repeat what they said.") +
+        ? "This is the opening question - skip a lengthy greeting, just a brief natural lead-in (a few words at most, e.g. \"To start,\" or \"Let's dive in.\") then straight into the question."
+        : "Briefly acknowledge their previous answer in 2-4 words at most (e.g. \"Got it.\" / \"Makes sense.\") before asking the next question - don't summarize or repeat what they said, and don't over-praise.") +
       (isFinalQuestion
-        ? ` This IS the final question (${nextQuestionNumber} of ${MAX_QUESTIONS}) - you may signal that naturally (e.g. "Last question:" / "To wrap up...").`
+        ? ` This IS the final question (${nextQuestionNumber} of ${MAX_QUESTIONS}) - you may signal that briefly (e.g. "Last question:").`
         : ` This is NOT the final question - there are ${MAX_QUESTIONS - nextQuestionNumber} more after it, so do NOT say or imply this is the last/final question, that you're "wrapping up", or anything suggesting the interview is ending.`) +
       " Output ONLY what you would actually say aloud - no question numbering, no labels, no meta-commentary, no markdown.",
   ]
@@ -105,7 +108,9 @@ export async function POST(req: NextRequest) {
   try {
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL_FAST,
-      max_tokens: 150,
+      // Small on purpose - questions should be one or two spoken sentences,
+      // not a paragraph with a long warm-up.
+      max_tokens: 90,
       system: cachedSystem(systemPromptText),
       messages,
     });

@@ -20,7 +20,10 @@ import MicIcon from "@mui/icons-material/Mic";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import NotesIcon from "@mui/icons-material/Notes";
 import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useAiInterviewer } from "@/hooks/useAiInterviewer";
+import { extractTextFromFile } from "@/lib/extractText";
 
 const statusLabel: Record<string, string> = {
   idle: "Not started",
@@ -50,7 +53,57 @@ export default function AiInterviewerPage() {
   const [jobRole, setJobRole] = React.useState("");
   const [jobDescription, setJobDescription] = React.useState("");
   const [answerStyle, setAnswerStyle] = React.useState<"prose" | "bullets">("prose");
+  const [activeResumeName, setActiveResumeName] = React.useState<string | null>(null);
+  const [resumeLoading, setResumeLoading] = React.useState(true);
+  const [isUploadingResume, setIsUploadingResume] = React.useState(false);
+  const [resumeError, setResumeError] = React.useState("");
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { status, interimTranscript, turns, error, questionNumber, sessionId, start, stop } = useAiInterviewer();
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/resume", { credentials: "include" });
+        const json = await res.json();
+        if (json.success) {
+          const active = json.data.find((r: { isActive: boolean }) => r.isActive);
+          setActiveResumeName(active?.fileName ?? null);
+        }
+      } finally {
+        setResumeLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    if (!["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(file.type)) {
+      setResumeError("Only PDF and DOCX files are allowed.");
+      return;
+    }
+
+    setIsUploadingResume(true);
+    setResumeError("");
+    try {
+      const fileText = await extractTextFromFile(file);
+      const res = await fetch("/api/resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ rawText: fileText, fileName: file.name, fileType: file.type }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.message || "Upload failed");
+      setActiveResumeName(file.name);
+    } catch (err) {
+      setResumeError(err instanceof Error ? err.message : "Failed to upload resume.");
+    } finally {
+      setIsUploadingResume(false);
+    }
+  };
 
   const isActive =
     status === "asking" || status === "listening" || status === "thinking" || status === "connecting" || status === "scoring";
@@ -92,6 +145,46 @@ export default function AiInterviewerPage() {
               fullWidth
               placeholder="Paste the job description for more tailored questions (optional)."
             />
+
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                Resume (used to tailor questions to your actual experience)
+              </Typography>
+              <input
+                ref={fileInputRef}
+                type="file"
+                hidden
+                accept=".pdf,.docx"
+                onChange={handleResumeUpload}
+              />
+              <Button
+                variant="outlined"
+                fullWidth
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingResume}
+                startIcon={
+                  isUploadingResume ? (
+                    <CircularProgress size={16} />
+                  ) : activeResumeName ? (
+                    <CheckCircleIcon fontSize="small" color="success" />
+                  ) : (
+                    <UploadFileIcon fontSize="small" />
+                  )
+                }
+                sx={{ justifyContent: "flex-start", textTransform: "none", py: 1 }}
+              >
+                {isUploadingResume
+                  ? "Uploading…"
+                  : !resumeLoading && activeResumeName
+                    ? `Using: ${activeResumeName} (tap to replace)`
+                    : "Upload your CV/resume (PDF or DOCX)"}
+              </Button>
+              {resumeError && (
+                <Typography variant="caption" color="error" display="block" sx={{ mt: 0.5 }}>
+                  {resumeError}
+                </Typography>
+              )}
+            </Box>
 
             <Box>
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
