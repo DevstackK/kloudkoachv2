@@ -2,10 +2,24 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Container, Paper, Typography, TextField, Button, Box, Chip, CircularProgress, Alert } from "@mui/material";
+import {
+  Container,
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  Box,
+  Chip,
+  CircularProgress,
+  Alert,
+  ToggleButtonGroup,
+  ToggleButton,
+} from "@mui/material";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import MicIcon from "@mui/icons-material/Mic";
 import AssessmentIcon from "@mui/icons-material/Assessment";
+import NotesIcon from "@mui/icons-material/Notes";
+import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import { useAiInterviewer } from "@/hooks/useAiInterviewer";
 
 const statusLabel: Record<string, string> = {
@@ -35,6 +49,7 @@ const statusColor: Record<string, "default" | "success" | "warning" | "error" | 
 export default function AiInterviewerPage() {
   const [jobRole, setJobRole] = React.useState("");
   const [jobDescription, setJobDescription] = React.useState("");
+  const [answerStyle, setAnswerStyle] = React.useState<"prose" | "bullets">("prose");
   const { status, interimTranscript, turns, error, questionNumber, sessionId, start, stop } = useAiInterviewer();
 
   const isActive =
@@ -45,7 +60,7 @@ export default function AiInterviewerPage() {
 
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault();
-    await start({ jobRole, jobDescription });
+    await start({ jobRole, jobDescription, answerStyle });
   };
 
   if (!isActive && !hasEnded) {
@@ -77,6 +92,27 @@ export default function AiInterviewerPage() {
               fullWidth
               placeholder="Paste the job description for more tailored questions (optional)."
             />
+
+            <Box>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                Feedback style (questions are always spoken naturally)
+              </Typography>
+              <ToggleButtonGroup
+                value={answerStyle}
+                exclusive
+                fullWidth
+                onChange={(_, value) => value && setAnswerStyle(value)}
+                size="small"
+              >
+                <ToggleButton value="prose" sx={{ textTransform: "none", gap: 1 }}>
+                  <NotesIcon fontSize="small" /> Normal text
+                </ToggleButton>
+                <ToggleButton value="bullets" sx={{ textTransform: "none", gap: 1 }}>
+                  <FormatListBulletedIcon fontSize="small" /> Bullet points
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+
             <Button
               type="submit"
               variant="contained"

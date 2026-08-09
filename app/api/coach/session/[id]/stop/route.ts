@@ -58,7 +58,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           "You are an interview coaching evaluator. For each item, rate the answer on a 0-10 scale with brief, " +
           "constructive feedback. Some items are answers a coach SUGGESTED to the candidate (rate how strong the " +
           "suggestion was); others are the CANDIDATE'S OWN real spoken answer in a mock interview (rate how well " +
-          "they answered, and address the feedback directly to them, second person).",
+          "they answered, and address the feedback directly to them, second person)." +
+          (session.answerStyle === "bullets"
+            ? " Write each feedback as 2-3 short bullet points (start each with \"- \") instead of prose sentences."
+            : ""),
         prompt: unratedTurns
           .map((t) =>
             t.suggestedAnswer

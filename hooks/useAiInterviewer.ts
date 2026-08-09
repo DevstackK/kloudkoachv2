@@ -21,6 +21,10 @@ export type InterviewerStatus =
 type StartParams = {
   jobRole: string;
   jobDescription?: string;
+  // Questions are always spoken as natural prose regardless of this - it
+  // only controls the format of the post-interview feedback text (bullets
+  // read aloud would sound broken).
+  answerStyle?: "prose" | "bullets";
 };
 
 // Same guard as the other coaching loops: skip near-empty fragments and
@@ -202,7 +206,12 @@ export function useAiInterviewer() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ type: "ai_interview", jobRole: params.jobRole, jobDescription: params.jobDescription }),
+          body: JSON.stringify({
+            type: "ai_interview",
+            jobRole: params.jobRole,
+            jobDescription: params.jobDescription,
+            answerStyle: params.answerStyle,
+          }),
         });
         const sessionJson = await sessionRes.json();
         if (!sessionRes.ok || !sessionJson.success) throw new Error(sessionJson.message || "Could not start session.");

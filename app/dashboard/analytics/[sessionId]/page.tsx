@@ -109,7 +109,7 @@ export default function SessionAnalyticsPage() {
                   <LinearProgress variant="determinate" value={turn.rating * 10} sx={{ flex: 1, height: 6, borderRadius: 3 }} />
                 </Box>
                 {turn.feedback && (
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-wrap" }}>
                     {turn.feedback}
                   </Typography>
                 )}
