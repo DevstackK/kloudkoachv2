@@ -18,6 +18,12 @@ export type InterviewerStatus =
   | "error"
   | "stopped";
 
+// How long to wait after Deepgram signals a pause before concluding the
+// candidate has actually finished their answer (vs. just pausing mid-
+// thought). Combined with Deepgram's own ~1s utterance_end_ms, someone
+// needs roughly 4s of true silence before the interview moves on.
+const ANSWER_SILENCE_GRACE_MS = 3000;
+
 type StartParams = {
   jobRole: string;
   jobDescription?: string;
@@ -96,6 +102,24 @@ export function useAiInterviewer() {
       );
       wsRef.current = ws;
       let buffer = "";
+      let finishTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const cancelPendingFinish = () => {
+        if (finishTimer) {
+          clearTimeout(finishTimer);
+          finishTimer = null;
+        }
+      };
+
+      const finishAnswer = () => {
+        const trimmed = buffer.trim();
+        if (!isUsableAnswer(trimmed, lastAnswerRef.current)) return;
+        lastAnswerRef.current = trimmed.toLowerCase().replace(/\s+/g, " ");
+        mediaRecorderRef.current?.stop();
+        mediaRecorderRef.current = null;
+        ws.close();
+        resolve(trimmed);
+      };
 
       ws.onopen = () => {
         const stream = micStreamRef.current;
@@ -114,24 +138,29 @@ export function useAiInterviewer() {
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
+          // Deepgram's UtteranceEnd fires on any ~1s pause - real spoken
+          // answers are full of those (gathering thoughts, breathing
+          // between points), so treating the first one as "done answering"
+          // cuts people off mid-thought. Instead, use it to START a longer
+          // grace window: if they keep talking before it elapses, the
+          // window gets cancelled and pushed out again; only genuine
+          // extended silence actually concludes the answer.
           if (msg.type === "UtteranceEnd") {
-            const trimmed = buffer.trim();
-            if (isUsableAnswer(trimmed, lastAnswerRef.current)) {
-              lastAnswerRef.current = trimmed.toLowerCase().replace(/\s+/g, " ");
-              mediaRecorderRef.current?.stop();
-              mediaRecorderRef.current = null;
-              ws.close();
-              resolve(trimmed);
-            } else {
-              buffer = "";
-              setInterimTranscript("");
-            }
+            cancelPendingFinish();
+            finishTimer = setTimeout(finishAnswer, ANSWER_SILENCE_GRACE_MS);
+            return;
+          }
+          if (msg.type === "SpeechStarted") {
+            // They're talking again - definitely not done, cancel early
+            // rather than waiting for the next is_final to arrive.
+            cancelPendingFinish();
             return;
           }
           const alt = msg.channel?.alternatives?.[0];
           if (alt && msg.is_final) {
             buffer = `${buffer} ${alt.transcript}`.trim();
             setInterimTranscript(buffer);
+            cancelPendingFinish();
           }
         } catch {
           // ignore malformed frames
