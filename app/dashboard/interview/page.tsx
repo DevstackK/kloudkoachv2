@@ -16,6 +16,8 @@ import {
   Tooltip,
   ToggleButtonGroup,
   ToggleButton,
+  FormControlLabel,
+  Checkbox,
 } from "@mui/material";
 import ScreenShareIcon from "@mui/icons-material/ScreenShare";
 import NotesIcon from "@mui/icons-material/Notes";
@@ -48,6 +50,7 @@ export default function LiveInterviewPage() {
   const [jobDescription, setJobDescription] = React.useState("");
   const [answerStyle, setAnswerStyle] = React.useState<"prose" | "bullets">("prose");
   const [transparentMode, setTransparentMode] = React.useState(false);
+  const [acceptedDisclaimer, setAcceptedDisclaimer] = React.useState(false);
   const { status, interimTranscript, turns, error, sessionId, start, stop } = useCoachSession();
 
   const isActive = status === "listening" || status === "thinking" || status === "connecting";
@@ -71,6 +74,22 @@ export default function LiveInterviewPage() {
             choose that tab, checking &quot;Share tab audio&quot;. Kloud Koach listens in and suggests spoken answers
             in real time.
           </Typography>
+
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+              Use responsibly - you&apos;re responsible for how this is used.
+            </Typography>
+            <Typography variant="body2">
+              This is meant to help you think clearly and stay composed in a live interview - not to let someone
+              else answer for you or to misrepresent your own skills. Using it to deceive an interviewer, in breach
+              of an employer&apos;s or platform&apos;s rules, or anywhere it isn&apos;t permitted is solely your
+              responsibility, not Kloud Koach&apos;s. See our{" "}
+              <Link href="/terms" style={{ color: "inherit", fontWeight: 600 }} target="_blank">
+                Terms of Service
+              </Link>{" "}
+              for full detail.
+            </Typography>
+          </Alert>
 
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -110,12 +129,28 @@ export default function LiveInterviewPage() {
               </ToggleButtonGroup>
             </Box>
 
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={acceptedDisclaimer}
+                  onChange={(e) => setAcceptedDisclaimer(e.target.checked)}
+                  size="small"
+                />
+              }
+              label={
+                <Typography variant="body2" color="text.secondary">
+                  I understand this is meant to help me, not to deceive an interviewer, and that how I use it is my
+                  responsibility.
+                </Typography>
+              }
+            />
+
             <Button
               type="submit"
               variant="contained"
               size="large"
               startIcon={<ScreenShareIcon />}
-              disabled={!jobRole}
+              disabled={!jobRole || !acceptedDisclaimer}
               sx={{ mt: 1, py: 1.5, borderRadius: "12px" }}
             >
               Share a Tab &amp; Start
