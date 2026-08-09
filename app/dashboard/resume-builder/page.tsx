@@ -8,6 +8,7 @@ import {
   Typography,
   Box,
   Button,
+  TextField,
   CircularProgress,
   Alert,
   List,
@@ -24,6 +25,7 @@ import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import { useAuth } from "@/lib/AuthProvider";
 
 type ResumeRow = {
@@ -32,6 +34,7 @@ type ResumeRow = {
   isActive: boolean;
   createdAt: string;
   rawText: string;
+  jobDescription?: string | null;
 };
 
 export default function ResumeBuilderPage() {
@@ -42,6 +45,9 @@ export default function ResumeBuilderPage() {
   const [isUploading, setIsUploading] = React.useState(false);
   const [error, setError] = React.useState("");
   const [statusMsg, setStatusMsg] = React.useState("");
+  const [tailorJD, setTailorJD] = React.useState("");
+  const [tailorRole, setTailorRole] = React.useState("");
+  const [isTailoring, setIsTailoring] = React.useState(false);
 
   const activeResume = resumes.find((r) => r.isActive);
 
@@ -141,6 +147,32 @@ export default function ResumeBuilderPage() {
     }
   };
 
+  const handleTailor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsTailoring(true);
+    setError("");
+    setStatusMsg("");
+    try {
+      const res = await fetch("/api/resume/tailor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ jobDescription: tailorJD, jobRole: tailorRole || undefined }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.message || "Failed to tailor resume");
+
+      setStatusMsg("Tailored resume created and set active.");
+      setTailorJD("");
+      setTailorRole("");
+      await fetchResumes();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to tailor resume");
+    } finally {
+      setIsTailoring(false);
+    }
+  };
+
   return (
     <Container maxWidth="sm" sx={{ py: 6, flex: 1 }}>
       <Paper elevation={0} sx={{ p: 3, borderRadius: "20px", border: "1px solid", borderColor: "divider" }}>
@@ -191,9 +223,12 @@ export default function ResumeBuilderPage() {
           </Box>
           {activeResume ? (
             <>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
-                {activeResume.fileName}
-              </Typography>
+              <Box display="flex" alignItems="center" gap={1} sx={{ mb: 1 }}>
+                <Typography variant="body2" fontWeight={500}>
+                  {activeResume.fileName}
+                </Typography>
+                {activeResume.jobDescription && <Chip label="Tailored" size="small" color="secondary" />}
+              </Box>
               <Box sx={{ maxHeight: 150, overflowY: "auto", fontSize: "0.8rem", color: "text.secondary", bgcolor: "background.paper", p: 1, borderRadius: 1 }}>
                 {activeResume.rawText.slice(0, 1000)}...
               </Box>
@@ -209,6 +244,49 @@ export default function ResumeBuilderPage() {
           {isUploading ? "Processing..." : "Upload New Resume"}
           <input type="file" hidden accept=".pdf,.docx" onChange={handleFileChange} />
         </Button>
+
+        <Divider sx={{ mb: 2 }}>
+          <Chip label="Tailor for a job" size="small" />
+        </Divider>
+
+        {resumes.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
+            Upload a resume above first, then you can tailor it to a specific job description.
+          </Typography>
+        ) : (
+          <Box component="form" onSubmit={handleTailor} sx={{ display: "flex", flexDirection: "column", gap: 1.5, mb: 3 }}>
+            <Typography variant="caption" color="text.secondary">
+              Rewrites your current active resume to emphasize what matters for this job - never invents experience,
+              just reframes what&apos;s already there. Creates a new version and sets it active.
+            </Typography>
+            <TextField
+              label="Job role (optional, used to label the result)"
+              value={tailorRole}
+              onChange={(e) => setTailorRole(e.target.value)}
+              size="small"
+              fullWidth
+            />
+            <TextField
+              label="Job description"
+              value={tailorJD}
+              onChange={(e) => setTailorJD(e.target.value)}
+              multiline
+              rows={4}
+              fullWidth
+              placeholder="Paste the job description to tailor your resume against."
+            />
+            <Button
+              type="submit"
+              variant="outlined"
+              fullWidth
+              startIcon={isTailoring ? <CircularProgress size={16} /> : <AutoFixHighIcon />}
+              disabled={isTailoring || !tailorJD.trim()}
+              sx={{ textTransform: "none" }}
+            >
+              {isTailoring ? "Tailoring…" : "Tailor My Resume"}
+            </Button>
+          </Box>
+        )}
 
         <Divider sx={{ mb: 2 }}>
           <Chip label="Resume History" size="small" />

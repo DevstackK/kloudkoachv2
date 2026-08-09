@@ -110,6 +110,10 @@ model Resume {
   fileType       String
   isActive       Boolean  @default(false)
   createdAt      DateTime @default(now())
+  // Set only on AI-tailored variants (rewritten for a specific job
+  // description) - null for plain uploads. Doubles as both the "is this
+  // tailored" flag and the record of what it was tailored for.
+  jobDescription String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -18,6 +18,7 @@ import {
   ListItemText,
 } from "@mui/material";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 
 type ExamQuestion = {
   question: string;
@@ -43,6 +44,7 @@ export default function ExamPreparationPage() {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [error, setError] = React.useState("");
   const [exam, setExam] = React.useState<ExamResult | null>(null);
+  const [revealed, setRevealed] = React.useState<Set<number>>(new Set());
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -74,6 +76,7 @@ export default function ExamPreparationPage() {
     setError("");
     setIsGenerating(true);
     setExam(null);
+    setRevealed(new Set());
     try {
       const res = await fetch("/api/exam-prep/session", {
         method: "POST",
@@ -100,7 +103,13 @@ export default function ExamPreparationPage() {
           <Typography variant="h5" fontWeight="bold">
             {exam.examTitle}
           </Typography>
-          <Button variant="outlined" onClick={() => setExam(null)}>
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setExam(null);
+              setRevealed(new Set());
+            }}
+          >
             New Exam
           </Button>
         </Box>
@@ -122,16 +131,30 @@ export default function ExamPreparationPage() {
                 ))}
               </List>
             )}
-            {q.correctAnswer && (
-              <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
-                Answer: {q.correctAnswer}
-              </Typography>
-            )}
-            {q.explanation && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                {q.explanation}
-              </Typography>
-            )}
+            {(q.correctAnswer || q.explanation) &&
+              (revealed.has(i) ? (
+                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
+                  {q.correctAnswer && (
+                    <Typography variant="body2" color="success.main" fontWeight={600}>
+                      Answer: {q.correctAnswer}
+                    </Typography>
+                  )}
+                  {q.explanation && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {q.explanation}
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
+                <Button
+                  size="small"
+                  startIcon={<VisibilityIcon fontSize="small" />}
+                  onClick={() => setRevealed((prev) => new Set(prev).add(i))}
+                  sx={{ mt: 1.5, textTransform: "none" }}
+                >
+                  Reveal Answer
+                </Button>
+              ))}
           </Paper>
         ))}
       </Container>
