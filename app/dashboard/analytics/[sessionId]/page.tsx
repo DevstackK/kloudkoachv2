@@ -8,6 +8,7 @@ type Interaction = {
   id: string;
   questionText: string;
   suggestedAnswer: string | null;
+  userAnswerText: string | null;
   rating: number | null;
   feedback: string | null;
 };
@@ -87,6 +88,16 @@ export default function SessionAnalyticsPage() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2, whiteSpace: "pre-wrap" }}>
                 {turn.suggestedAnswer}
               </Typography>
+            )}
+            {turn.userAnswerText && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                  Your answer
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                  {turn.userAnswerText}
+                </Typography>
+              </Box>
             )}
             {turn.rating !== null && (
               <>

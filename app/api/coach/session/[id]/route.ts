@@ -30,6 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         id: i.id,
         questionText: i.questionText,
         suggestedAnswer: i.suggestedAnswer,
+        userAnswerText: i.userAnswerText,
         rating: i.rating,
         feedback: i.feedback,
       })),
