@@ -36,6 +36,11 @@ const nextConfig = {
               "script-src 'self' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
+              // AI Interviewer plays ElevenLabs TTS audio via a blob: URL
+              // (URL.createObjectURL on the fetched audio bytes) - without
+              // this, the <audio> element's load is CSP-blocked and fails
+              // silently with a generic media error event.
+              "media-src 'self' blob:",
               "font-src 'self' data:",
               "connect-src 'self' wss://api.deepgram.com https://api.deepgram.com",
               "frame-src https://checkout.stripe.com https://js.stripe.com",
