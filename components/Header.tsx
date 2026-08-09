@@ -35,6 +35,7 @@ const mainNavLinks = [
   { title: "Home", path: "/dashboard" },
   { title: "Live Interview Co-Pilot", path: "/dashboard/interview" },
   { title: "Interview Preparation", path: "/dashboard/interview-preparation" },
+  { title: "AI Interviewer", path: "/dashboard/ai-interviewer" },
   { title: "Resume Builder", path: "/dashboard/resume-builder" },
 ];
 
@@ -63,7 +64,12 @@ export default function Header() {
     router.push("/");
   };
 
-  const isActive = (path: string) => (path === "/dashboard" ? pathname === path : pathname?.startsWith(path));
+  // pathname.startsWith(path) alone false-positives: "/dashboard/interview"
+  // is a string prefix of "/dashboard/interview-preparation", so both would
+  // light up on the prep page. Require an exact match or a "/" boundary
+  // right after the path.
+  const isActive = (path: string) =>
+    path === "/dashboard" ? pathname === path : pathname === path || pathname?.startsWith(`${path}/`);
 
   const getNavStyle = (active: boolean) => ({
     color: "white",
