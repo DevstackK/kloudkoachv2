@@ -70,15 +70,21 @@ export async function POST(req: NextRequest) {
     prisma.resume.findFirst({ where: { userId, isActive: true } }),
   ]);
 
+  const nextQuestionNumber = answeredCount + 1;
+  const isFinalQuestion = nextQuestionNumber === MAX_QUESTIONS;
+
   const systemPromptText = [
     `You are a professional, warm but focused interviewer conducting a live mock interview with ${user?.name ?? "a candidate"} for the role: ${session.jobRole}.`,
     session.jobDescription ? `Job description context:\n${session.jobDescription.slice(0, 1500)}` : null,
     activeResume ? `Candidate's resume:\n${activeResume.rawText.slice(0, 2000)}` : null,
-    `Ask exactly ONE interview question at a time, and this will be question ${answeredCount + 1} of ${MAX_QUESTIONS}. ` +
+    `Ask exactly ONE interview question at a time. This will be question ${nextQuestionNumber} of ${MAX_QUESTIONS} total. ` +
       "Mix behavioral, situational, and role-specific questions - don't repeat the style or topic of an earlier question. " +
       (answeredCount === 0
         ? "This is the opening question - start naturally (a brief warm-up like asking them to introduce themselves, or go straight into a relevant question)."
         : "Briefly acknowledge their previous answer in one short natural phrase (e.g. \"Got it, thanks.\" / \"That's helpful context.\") before asking the next question - don't summarize or repeat what they said.") +
+      (isFinalQuestion
+        ? ` This IS the final question (${nextQuestionNumber} of ${MAX_QUESTIONS}) - you may signal that naturally (e.g. "Last question:" / "To wrap up...").`
+        : ` This is NOT the final question - there are ${MAX_QUESTIONS - nextQuestionNumber} more after it, so do NOT say or imply this is the last/final question, that you're "wrapping up", or anything suggesting the interview is ending.`) +
       " Output ONLY what you would actually say aloud - no question numbering, no labels, no meta-commentary, no markdown.",
   ]
     .filter(Boolean)
