@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Container, Paper, Typography, TextField, Button, Box, Chip, CircularProgress, Alert } from "@mui/material";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import MicIcon from "@mui/icons-material/Mic";
+import AssessmentIcon from "@mui/icons-material/Assessment";
 import { useAiInterviewer } from "@/hooks/useAiInterviewer";
 
 const statusLabel: Record<string, string> = {
@@ -12,6 +14,7 @@ const statusLabel: Record<string, string> = {
   asking: "Interviewer speaking…",
   listening: "Your turn — listening",
   thinking: "Thinking…",
+  scoring: "Scoring your answers…",
   done: "Interview complete",
   error: "Error",
   stopped: "Session ended",
@@ -23,6 +26,7 @@ const statusColor: Record<string, "default" | "success" | "warning" | "error" | 
   asking: "info",
   listening: "success",
   thinking: "warning",
+  scoring: "warning",
   done: "default",
   error: "error",
   stopped: "default",
@@ -31,9 +35,10 @@ const statusColor: Record<string, "default" | "success" | "warning" | "error" | 
 export default function AiInterviewerPage() {
   const [jobRole, setJobRole] = React.useState("");
   const [jobDescription, setJobDescription] = React.useState("");
-  const { status, interimTranscript, turns, error, questionNumber, start, stop } = useAiInterviewer();
+  const { status, interimTranscript, turns, error, questionNumber, sessionId, start, stop } = useAiInterviewer();
 
-  const isActive = status === "asking" || status === "listening" || status === "thinking" || status === "connecting";
+  const isActive =
+    status === "asking" || status === "listening" || status === "thinking" || status === "connecting" || status === "scoring";
   const hasEnded = status === "done" || status === "stopped";
   const currentTurn = turns[turns.length - 1];
   const earlierTurns = turns.slice(0, -1).reverse();
@@ -97,7 +102,7 @@ export default function AiInterviewerPage() {
           </Typography>
           <Box display="flex" alignItems="center" gap={1.5}>
             <Chip label={statusLabel[status]} color={statusColor[status]} size="small" />
-            {isActive && (
+            {isActive && status !== "scoring" && (
               <Button variant="outlined" color="error" size="small" onClick={stop}>
                 End Interview
               </Button>
@@ -112,8 +117,24 @@ export default function AiInterviewerPage() {
         )}
 
         {status === "done" && (
-          <Alert severity="success" sx={{ mb: 3 }}>
-            Interview complete — {turns.length} questions answered. Nice work.
+          <Alert
+            severity="success"
+            sx={{ mb: 3 }}
+            action={
+              sessionId && (
+                <Button
+                  component={Link}
+                  href={`/dashboard/analytics/${sessionId}`}
+                  color="inherit"
+                  size="small"
+                  startIcon={<AssessmentIcon />}
+                >
+                  View Results
+                </Button>
+              )
+            }
+          >
+            Interview complete — {turns.length} questions answered. Your ratings and feedback are ready.
           </Alert>
         )}
 

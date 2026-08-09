@@ -13,7 +13,8 @@ export type InterviewerStatus =
   | "asking" // TTS audio playing
   | "listening" // mic capturing the candidate's answer
   | "thinking" // generating the next question
-  | "done" // interview complete (hit the question cap)
+  | "scoring" // interview finished, generating per-question ratings/feedback
+  | "done" // interview complete, scored
   | "error"
   | "stopped";
 
@@ -38,6 +39,7 @@ export function useAiInterviewer() {
   const [turns, setTurns] = React.useState<InterviewerTurn[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [questionNumber, setQuestionNumber] = React.useState(0);
+  const [sessionId, setSessionId] = React.useState<string | null>(null);
 
   const sessionIdRef = React.useRef<string | null>(null);
   const micStreamRef = React.useRef<MediaStream | null>(null);
@@ -158,6 +160,15 @@ export function useAiInterviewer() {
       }
 
       if (json.data.done) {
+        setStatus("scoring");
+        // Reuses the same rating/feedback generation the live/mock coaching
+        // sessions already get on stop - this blocks until scores are
+        // ready, so by the time status flips to "done" a results link is
+        // immediately useful rather than pointing at an unscored session.
+        await fetch(`/api/coach/session/${sessionIdRef.current}/stop`, {
+          method: "POST",
+          credentials: "include",
+        }).catch(() => {});
         setStatus("done");
         return;
       }
@@ -196,6 +207,7 @@ export function useAiInterviewer() {
         const sessionJson = await sessionRes.json();
         if (!sessionRes.ok || !sessionJson.success) throw new Error(sessionJson.message || "Could not start session.");
         sessionIdRef.current = sessionJson.data.sessionId;
+        setSessionId(sessionJson.data.sessionId);
 
         await runTurn();
       } catch (err) {
@@ -233,5 +245,5 @@ export function useAiInterviewer() {
 
   React.useEffect(() => () => stop(), [stop]);
 
-  return { status, interimTranscript, turns, error, questionNumber, start, stop };
+  return { status, interimTranscript, turns, error, questionNumber, sessionId, start, stop };
 }

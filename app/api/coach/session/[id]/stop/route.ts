@@ -45,15 +45,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   let averageScore: number | null = null;
 
-  const unratedTurns = session.interactions.filter((i) => i.rating === null && i.suggestedAnswer);
+  // Two different things can land here: a coach-SUGGESTED answer (live/mock
+  // coaching - "was this a good answer to hand the candidate") or the AI
+  // Interviewer's actual transcribed CANDIDATE answer ("how did the
+  // candidate do"). Both get scored the same way, just described
+  // accurately in the prompt so Claude evaluates from the right angle.
+  const unratedTurns = session.interactions.filter((i) => i.rating === null && (i.suggestedAnswer || i.userAnswerText));
   if (unratedTurns.length > 0) {
     try {
       const result = await generateStructured<{ ratings: { interactionId: string; rating: number; feedback: string }[] }>({
         system:
-          "You are an interview coaching evaluator. Rate how strong each suggested answer was for its question, " +
-          "on a 0-10 scale, with brief constructive feedback.",
+          "You are an interview coaching evaluator. For each item, rate the answer on a 0-10 scale with brief, " +
+          "constructive feedback. Some items are answers a coach SUGGESTED to the candidate (rate how strong the " +
+          "suggestion was); others are the CANDIDATE'S OWN real spoken answer in a mock interview (rate how well " +
+          "they answered, and address the feedback directly to them, second person).",
         prompt: unratedTurns
-          .map((t) => `Interaction ${t.id}\nQuestion: ${t.questionText}\nSuggested answer: ${t.suggestedAnswer}`)
+          .map((t) =>
+            t.suggestedAnswer
+              ? `Interaction ${t.id}\nQuestion: ${t.questionText}\nSuggested answer: ${t.suggestedAnswer}`
+              : `Interaction ${t.id}\nInterviewer's question: ${t.questionText}\nCandidate's actual answer: ${t.userAnswerText}`
+          )
           .join("\n\n"),
         toolName: "record_ratings",
         toolDescription: "Records a rating and feedback for each interaction.",
