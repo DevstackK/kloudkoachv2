@@ -21,6 +21,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import NotesIcon from "@mui/icons-material/Notes";
 import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { useCoachSession } from "@/hooks/useCoachSession";
 import CompanionQrButton from "@/components/CompanionQrButton";
 
@@ -47,7 +48,7 @@ export default function InterviewPreparationPage() {
   const [jobDescription, setJobDescription] = React.useState("");
   const [answerStyle, setAnswerStyle] = React.useState<"prose" | "bullets">("prose");
   const [transparentMode, setTransparentMode] = React.useState(false);
-  const { status, interimTranscript, turns, error, sessionId, start, stop } = useCoachSession();
+  const { status, interimTranscript, turns, error, sessionId, start, stop, retryLastResponse } = useCoachSession();
 
   const isActive = status === "listening" || status === "thinking" || status === "connecting";
   const latestTurn = turns[turns.length - 1];
@@ -153,7 +154,7 @@ export default function InterviewPreparationPage() {
           </Box>
         </Box>
 
-        {error && (
+        {error && !latestTurn?.failed && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
           </Alert>
@@ -202,6 +203,17 @@ export default function InterviewPreparationPage() {
               {latestTurn.answer}
               {latestTurn.isStreaming && <CircularProgress size={14} sx={{ ml: 1 }} />}
             </Typography>
+            {latestTurn.failed && (
+              <Box sx={{ mt: 2, pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
+                <Typography variant="body2" color="error" sx={{ mb: 1 }}>
+                  {error || "Failed to get a response."} The session is still connected — you can retry without
+                  restarting the interview.
+                </Typography>
+                <Button variant="outlined" color="error" size="small" startIcon={<RefreshIcon />} onClick={retryLastResponse}>
+                  Retry This Answer
+                </Button>
+              </Box>
+            )}
           </Paper>
         )}
 

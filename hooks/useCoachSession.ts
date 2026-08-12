@@ -6,6 +6,7 @@ export type CoachTurn = {
   question: string;
   answer: string;
   isStreaming: boolean;
+  failed?: boolean;
 };
 
 export type CoachStatus = "idle" | "connecting" | "listening" | "thinking" | "error" | "stopped";
@@ -34,65 +35,121 @@ export function useCoachSession() {
   const micStreamRef = React.useRef<MediaStream | null>(null);
   const sessionIdRef = React.useRef<string | null>(null);
   const lastQuestionRef = React.useRef<string>("");
+  const lastFailedQuestionRef = React.useRef<string | null>(null);
   const stopRef = React.useRef<() => void>(() => {});
 
-  const respondTo = React.useCallback(async (question: string) => {
-    const currentSessionId = sessionIdRef.current;
-    const trimmed = question.trim();
-    if (!currentSessionId || !trimmed) return;
-
-    // Skip near-empty fragments ("um", "okay") and immediate repeats
-    // (e.g. the interviewer's mic re-triggering the same utterance) -
-    // every skipped call is a full Claude request saved.
-    const normalized = trimmed.toLowerCase().replace(/\s+/g, " ");
-    if (trimmed.split(/\s+/).length < 3 || normalized === lastQuestionRef.current) {
-      return;
+  // A 401 here almost always means the short-lived access-token cookie
+  // expired mid-session, not that the user is actually logged out - the
+  // refresh-token cookie is still valid. Silently reissue it and retry
+  // once before surfacing anything to the user.
+  const fetchWithAuthRetry = React.useCallback(async (url: string, options: RequestInit) => {
+    let res = await fetch(url, options);
+    if (res.status === 401) {
+      await fetch("/api/auth/me", { credentials: "include" }).catch(() => {});
+      res = await fetch(url, options);
     }
-    lastQuestionRef.current = normalized;
+    return res;
+  }, []);
 
-    setStatus("thinking");
-    setTurns((prev) => [...prev, { question, answer: "", isStreaming: true }]);
+  // Shared by both a fresh utterance and a manual retry of a failed one -
+  // isRetry updates the existing (failed) turn in place instead of pushing
+  // a new one, so retrying doesn't duplicate entries.
+  const callRespond = React.useCallback(
+    async (question: string, isRetry: boolean) => {
+      const currentSessionId = sessionIdRef.current;
+      if (!currentSessionId) return;
 
-    try {
-      const res = await fetch("/api/coach/respond", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ sessionId: currentSessionId, question }),
-      });
-
-      if (!res.ok || !res.body) {
-        throw new Error("Failed to get a response.");
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
+      setStatus("thinking");
+      setError(null);
+      if (isRetry) {
         setTurns((prev) => {
           const next = [...prev];
           const last = next[next.length - 1];
-          if (last) next[next.length - 1] = { ...last, answer: last.answer + chunk };
+          if (last) next[next.length - 1] = { ...last, answer: "", isStreaming: true, failed: false };
           return next;
         });
+      } else {
+        setTurns((prev) => [...prev, { question, answer: "", isStreaming: true, failed: false }]);
       }
 
-      setTurns((prev) => {
-        const next = [...prev];
-        const last = next[next.length - 1];
-        if (last) next[next.length - 1] = { ...last, isStreaming: false };
-        return next;
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to get a response.");
-    } finally {
-      setStatus((prev) => (prev === "thinking" ? "listening" : prev));
-    }
-  }, []);
+      try {
+        const res = await fetchWithAuthRetry("/api/coach/respond", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ sessionId: currentSessionId, question }),
+        });
+
+        if (!res.ok || !res.body) {
+          throw new Error("Failed to get a response.");
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          setTurns((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last) next[next.length - 1] = { ...last, answer: last.answer + chunk };
+            return next;
+          });
+        }
+
+        setTurns((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last) next[next.length - 1] = { ...last, isStreaming: false };
+          return next;
+        });
+        lastFailedQuestionRef.current = null;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to get a response.");
+        lastFailedQuestionRef.current = question;
+        // Without this, the turn's spinner (isStreaming: true, set above)
+        // never clears - the exact "froze, no response" symptom.
+        setTurns((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last) next[next.length - 1] = { ...last, isStreaming: false, failed: true };
+          return next;
+        });
+      } finally {
+        setStatus((prev) => (prev === "thinking" ? "listening" : prev));
+      }
+    },
+    [fetchWithAuthRetry]
+  );
+
+  const respondTo = React.useCallback(
+    (question: string) => {
+      const trimmed = question.trim();
+      if (!trimmed) return;
+
+      // Skip near-empty fragments ("um", "okay") and immediate repeats
+      // (e.g. the interviewer's mic re-triggering the same utterance) -
+      // every skipped call is a full Claude request saved.
+      const normalized = trimmed.toLowerCase().replace(/\s+/g, " ");
+      if (trimmed.split(/\s+/).length < 3 || normalized === lastQuestionRef.current) {
+        return;
+      }
+      lastQuestionRef.current = normalized;
+      callRespond(trimmed, false);
+    },
+    [callRespond]
+  );
+
+  // Re-attempts the last failed response in place - the mic/WebSocket keep
+  // running the whole time regardless (unlike a session-start failure),
+  // so there's nothing to reconnect, just the one Claude call to redo.
+  const retryLastResponse = React.useCallback(() => {
+    if (!lastFailedQuestionRef.current) return;
+    callRespond(lastFailedQuestionRef.current, true);
+  }, [callRespond]);
 
   const start = React.useCallback(
     async (params: StartParams) => {
@@ -102,7 +159,7 @@ export function useCoachSession() {
       setStatus("connecting");
 
       try {
-        const sessionRes = await fetch("/api/coach/session", {
+        const sessionRes = await fetchWithAuthRetry("/api/coach/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -115,7 +172,7 @@ export function useCoachSession() {
         setSessionId(sessionJson.data.sessionId);
         sessionIdRef.current = sessionJson.data.sessionId;
 
-        const tokenRes = await fetch("/api/deepgram-token", { method: "POST", credentials: "include" });
+        const tokenRes = await fetchWithAuthRetry("/api/deepgram-token", { method: "POST", credentials: "include" });
         const tokenJson = await tokenRes.json();
         if (!tokenRes.ok || !tokenJson.success) {
           throw new Error(tokenJson.message || "Could not start live transcription.");
@@ -225,5 +282,5 @@ export function useCoachSession() {
 
   React.useEffect(() => () => stop(), [stop]);
 
-  return { status, interimTranscript, turns, error, sessionId, start, stop };
+  return { status, interimTranscript, turns, error, sessionId, start, stop, retryLastResponse };
 }
