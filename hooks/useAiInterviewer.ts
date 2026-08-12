@@ -43,6 +43,19 @@ function isUsableAnswer(text: string, lastAnswer: string): boolean {
   return trimmed.split(/\s+/).length >= 3 && normalized !== lastAnswer;
 }
 
+// Tracks exactly which step of a turn is in flight, so a failure (most
+// commonly the access-token cookie expiring mid-session - interviews can
+// run well past its ~15min lifetime) can be retried from that same step
+// instead of forcing the whole interview to restart from question 1.
+// answeringId/questionId thread the specific InteractionRecord id through
+// each step - without it, a retry of a request that actually succeeded
+// server-side (but whose response the client never received) could attach
+// a stale answer to a different, newer question than the one it was for.
+type ResumePoint =
+  | { type: "question"; previousAnswer?: string; answeringId?: string }
+  | { type: "speak"; question: string; questionId: string }
+  | { type: "listen"; questionId: string };
+
 export function useAiInterviewer() {
   const [status, setStatus] = React.useState<InterviewerStatus>("idle");
   const [interimTranscript, setInterimTranscript] = React.useState("");
@@ -58,40 +71,57 @@ export function useAiInterviewer() {
   const audioElRef = React.useRef<HTMLAudioElement | null>(null);
   const lastAnswerRef = React.useRef<string>("");
   const stoppedRef = React.useRef(false);
+  const resumePointRef = React.useRef<ResumePoint>({ type: "question" });
 
-  const speak = React.useCallback(async (text: string) => {
-    setStatus("asking");
-    const res = await fetch("/api/interviewer/speak", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ text }),
-    });
-    if (!res.ok) throw new Error("Could not play the interviewer's voice.");
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    audioElRef.current = audio;
-
-    await new Promise<void>((resolve, reject) => {
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        resolve();
-      };
-      audio.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("Audio playback failed."));
-      };
-      audio.play().catch(reject);
-    });
+  // A 401 here almost always means the short-lived access-token cookie
+  // expired mid-interview, not that the user is actually logged out - the
+  // refresh-token cookie is still valid. Silently reissue it and retry
+  // once before surfacing anything to the user.
+  const fetchWithAuthRetry = React.useCallback(async (url: string, options: RequestInit) => {
+    let res = await fetch(url, options);
+    if (res.status === 401) {
+      await fetch("/api/auth/me", { credentials: "include" }).catch(() => {});
+      res = await fetch(url, options);
+    }
+    return res;
   }, []);
+
+  const speak = React.useCallback(
+    async (text: string) => {
+      setStatus("asking");
+      const res = await fetchWithAuthRetry("/api/interviewer/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error("Could not play the interviewer's voice.");
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioElRef.current = audio;
+
+      await new Promise<void>((resolve, reject) => {
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+          resolve();
+        };
+        audio.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error("Audio playback failed."));
+        };
+        audio.play().catch(reject);
+      });
+    },
+    [fetchWithAuthRetry]
+  );
 
   const listenForAnswer = React.useCallback(async (): Promise<string> => {
     setStatus("listening");
     setInterimTranscript("");
 
-    const tokenRes = await fetch("/api/deepgram-token", { method: "POST", credentials: "include" });
+    const tokenRes = await fetchWithAuthRetry("/api/deepgram-token", { method: "POST", credentials: "include" });
     const tokenJson = await tokenRes.json();
     if (!tokenRes.ok || !tokenJson.success) throw new Error(tokenJson.message || "Could not start listening.");
 
@@ -169,69 +199,106 @@ export function useAiInterviewer() {
 
       ws.onerror = () => reject(new Error("Live transcription connection error."));
     });
-  }, []);
+  }, [fetchWithAuthRetry]);
 
-  const runTurn = React.useCallback(
-    async (previousAnswer?: string) => {
-      setStatus("thinking");
-      const res = await fetch("/api/interviewer/question", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ sessionId: sessionIdRef.current, previousAnswer }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.message || "Could not get the next question.");
+  // Single state machine covering all three steps of a turn (ask -> speak
+  // -> listen -> ask...), with ONE error boundary that records exactly
+  // which step was in flight (resumePointRef) before attempting it - so a
+  // retry resumes from that exact step instead of re-asking a question
+  // that already went out, or losing the interview's progress entirely.
+  const runFrom = React.useCallback(
+    async (point: ResumePoint): Promise<void> => {
+      resumePointRef.current = point;
+      try {
+        setError(null);
 
-      if (previousAnswer) {
-        setTurns((prev) => {
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (last) next[next.length - 1] = { ...last, answer: previousAnswer };
-          return next;
-        });
+        if (point.type === "question") {
+          setStatus("thinking");
+          const res = await fetchWithAuthRetry("/api/interviewer/question", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              sessionId: sessionIdRef.current,
+              previousAnswer: point.previousAnswer,
+              answeringId: point.answeringId,
+            }),
+          });
+          const json = await res.json();
+          if (!res.ok || !json.success) throw new Error(json.message || "Could not get the next question.");
+
+          if (point.previousAnswer) {
+            const answeredText = point.previousAnswer;
+            setTurns((prev) => {
+              const next = [...prev];
+              const last = next[next.length - 1];
+              if (last) next[next.length - 1] = { ...last, answer: answeredText };
+              return next;
+            });
+          }
+
+          if (json.data.done) {
+            setStatus("scoring");
+            // Reuses the same rating/feedback generation the live/mock
+            // coaching sessions already get on stop - this blocks until
+            // scores are ready, so by the time status flips to "done" a
+            // results link is immediately useful.
+            await fetch(`/api/coach/session/${sessionIdRef.current}/stop`, {
+              method: "POST",
+              credentials: "include",
+            }).catch(() => {});
+            setStatus("done");
+            return;
+          }
+
+          setQuestionNumber(json.data.questionNumber);
+          setTurns((prev) => [...prev, { question: json.data.question, answer: "" }]);
+          if (stoppedRef.current) return;
+          await runFrom({ type: "speak", question: json.data.question, questionId: json.data.questionId });
+          return;
+        }
+
+        if (point.type === "speak") {
+          await speak(point.question);
+          if (stoppedRef.current) return;
+          await runFrom({ type: "listen", questionId: point.questionId });
+          return;
+        }
+
+        // point.type === "listen"
+        const answer = await listenForAnswer();
+        if (stoppedRef.current) return;
+        await runFrom({ type: "question", previousAnswer: answer, answeringId: point.questionId });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Something went wrong.");
+        setStatus("error");
       }
-
-      if (json.data.done) {
-        setStatus("scoring");
-        // Reuses the same rating/feedback generation the live/mock coaching
-        // sessions already get on stop - this blocks until scores are
-        // ready, so by the time status flips to "done" a results link is
-        // immediately useful rather than pointing at an unscored session.
-        await fetch(`/api/coach/session/${sessionIdRef.current}/stop`, {
-          method: "POST",
-          credentials: "include",
-        }).catch(() => {});
-        setStatus("done");
-        return;
-      }
-
-      setQuestionNumber(json.data.questionNumber);
-      setTurns((prev) => [...prev, { question: json.data.question, answer: "" }]);
-
-      await speak(json.data.question);
-      if (stoppedRef.current) return;
-
-      const answer = await listenForAnswer();
-      if (stoppedRef.current) return;
-
-      await runTurn(answer);
     },
-    [speak, listenForAnswer]
+    [speak, listenForAnswer, fetchWithAuthRetry]
   );
+
+  // Resumes the interview from whatever step last failed, without
+  // resetting turns/session/question progress.
+  const retry = React.useCallback(() => {
+    if (stoppedRef.current) return;
+    runFrom(resumePointRef.current);
+  }, [runFrom]);
 
   const start = React.useCallback(
     async (params: StartParams) => {
       setError(null);
       setTurns([]);
       setQuestionNumber(0);
+      setSessionId(null);
+      sessionIdRef.current = null;
       stoppedRef.current = false;
+      resumePointRef.current = { type: "question" };
       setStatus("connecting");
 
       try {
         micStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-        const sessionRes = await fetch("/api/coach/session", {
+        const sessionRes = await fetchWithAuthRetry("/api/coach/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -247,13 +314,17 @@ export function useAiInterviewer() {
         sessionIdRef.current = sessionJson.data.sessionId;
         setSessionId(sessionJson.data.sessionId);
 
-        await runTurn();
+        await runFrom({ type: "question" });
       } catch (err) {
+        // Failures here (mic permission, session creation) happen before
+        // any turn/progress exists, so there's nothing to preserve -
+        // falling back to the setup form is correct, unlike a mid-
+        // interview failure inside runFrom.
         setError(err instanceof Error ? err.message : "Could not start the interview.");
         setStatus("error");
       }
     },
-    [runTurn]
+    [runFrom, fetchWithAuthRetry]
   );
 
   const stop = React.useCallback(() => {
@@ -283,5 +354,5 @@ export function useAiInterviewer() {
 
   React.useEffect(() => () => stop(), [stop]);
 
-  return { status, interimTranscript, turns, error, questionNumber, sessionId, start, stop };
+  return { status, interimTranscript, turns, error, questionNumber, sessionId, start, stop, retry };
 }

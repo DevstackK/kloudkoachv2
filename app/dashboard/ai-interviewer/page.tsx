@@ -14,6 +14,8 @@ import {
   Alert,
   ToggleButtonGroup,
   ToggleButton,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import MicIcon from "@mui/icons-material/Mic";
@@ -22,6 +24,7 @@ import NotesIcon from "@mui/icons-material/Notes";
 import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { useAiInterviewer } from "@/hooks/useAiInterviewer";
 import { extractTextFromFile } from "@/lib/extractText";
 
@@ -57,8 +60,9 @@ export default function AiInterviewerPage() {
   const [resumeLoading, setResumeLoading] = React.useState(true);
   const [isUploadingResume, setIsUploadingResume] = React.useState(false);
   const [resumeError, setResumeError] = React.useState("");
+  const [acceptedDisclaimer, setAcceptedDisclaimer] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const { status, interimTranscript, turns, error, questionNumber, sessionId, start, stop } = useAiInterviewer();
+  const { status, interimTranscript, turns, error, questionNumber, sessionId, start, stop, retry } = useAiInterviewer();
 
   React.useEffect(() => {
     (async () => {
@@ -108,6 +112,12 @@ export default function AiInterviewerPage() {
   const isActive =
     status === "asking" || status === "listening" || status === "thinking" || status === "connecting" || status === "scoring";
   const hasEnded = status === "done" || status === "stopped";
+  // A failure mid-interview (most commonly the access-token cookie
+  // expiring - interviews can run past its ~15min lifetime) shouldn't
+  // force starting over from question 1. If there's an existing session,
+  // stay on this view and offer to resume rather than falling back to the
+  // setup form and losing all progress.
+  const isRecoverableError = status === "error" && !!sessionId;
   const currentTurn = turns[turns.length - 1];
   const earlierTurns = turns.slice(0, -1).reverse();
 
@@ -116,7 +126,7 @@ export default function AiInterviewerPage() {
     await start({ jobRole, jobDescription, answerStyle });
   };
 
-  if (!isActive && !hasEnded) {
+  if (!isActive && !hasEnded && !isRecoverableError) {
     return (
       <Container maxWidth="sm" sx={{ py: 6, flex: 1 }}>
         <Paper elevation={0} sx={{ p: 4, borderRadius: "20px", border: "1px solid", borderColor: "divider" }}>
@@ -127,6 +137,20 @@ export default function AiInterviewerPage() {
             A simulated interviewer asks you real questions out loud, one at a time - you answer by speaking, just
             like a real interview. Uses your mic and speakers.
           </Typography>
+
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+              This is practice, not a real interview.
+            </Typography>
+            <Typography variant="body2">
+              It&apos;s meant to help you rehearse and get comfortable answering out loud - not to guarantee you&apos;ll
+              pass a real interview, and not a substitute for genuine preparation. See our{" "}
+              <Link href="/terms" style={{ color: "inherit", fontWeight: 600 }} target="_blank">
+                Terms of Service
+              </Link>{" "}
+              for full detail.
+            </Typography>
+          </Alert>
 
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -206,12 +230,27 @@ export default function AiInterviewerPage() {
               </ToggleButtonGroup>
             </Box>
 
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={acceptedDisclaimer}
+                  onChange={(e) => setAcceptedDisclaimer(e.target.checked)}
+                  size="small"
+                />
+              }
+              label={
+                <Typography variant="body2" color="text.secondary">
+                  I understand this is practice, not a guarantee of interview success.
+                </Typography>
+              }
+            />
+
             <Button
               type="submit"
               variant="contained"
               size="large"
               startIcon={<RecordVoiceOverIcon />}
-              disabled={!jobRole}
+              disabled={!jobRole || !acceptedDisclaimer}
               sx={{ mt: 1, py: 1.5, borderRadius: "12px" }}
             >
               Start Interview
@@ -239,7 +278,7 @@ export default function AiInterviewerPage() {
           </Box>
         </Box>
 
-        {error && (
+        {error && !isRecoverableError && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
           </Alert>
@@ -308,6 +347,29 @@ export default function AiInterviewerPage() {
                 </Typography>
               </Box>
             )}
+          </Paper>
+        )}
+
+        {/* Connection lost mid-interview (commonly the login session
+            timing out) - reconnect and pick up right where it stopped
+            instead of losing everything already answered. */}
+        {isRecoverableError && (
+          <Paper
+            elevation={0}
+            sx={{ p: 2.5, mb: 2, borderRadius: "14px", border: "1px solid", borderColor: "error.main", textAlign: "center" }}
+          >
+            <Typography variant="body2" color="error" sx={{ mb: 1.5 }}>
+              {error || "Connection lost."} Your progress so far ({turns.length} question{turns.length === 1 ? "" : "s"}) is
+              still saved.
+            </Typography>
+            <Box display="flex" gap={1.5} justifyContent="center">
+              <Button variant="contained" color="error" startIcon={<RefreshIcon />} onClick={retry}>
+                Refresh Connection &amp; Continue
+              </Button>
+              <Button variant="text" color="inherit" onClick={stop}>
+                End Interview Instead
+              </Button>
+            </Box>
           </Paper>
         )}
 

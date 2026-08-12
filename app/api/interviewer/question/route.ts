@@ -16,6 +16,13 @@ const schema = z.object({
   // Omitted for the very first question of a session; present on every
   // subsequent call, since the candidate just finished answering.
   previousAnswer: z.string().max(4000).optional(),
+  // The specific InteractionRecord this answer belongs to (returned as
+  // questionId on the previous call). Disambiguates a retried request from
+  // one that actually reached the server and already got a new question
+  // generated - without this, a retry could attach a stale answer to the
+  // wrong (newer) pending question. Optional only for backward
+  // compatibility; falls back to "most recent unanswered" if omitted.
+  answeringId: z.string().min(1).optional(),
 });
 
 // Caps the interview length so it has a natural end rather than running
@@ -34,7 +41,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return withCors(req, NextResponse.json({ success: false, message: "Invalid input" }, { status: 400 }));
-  const { sessionId, previousAnswer } = parsed.data;
+  const { sessionId, previousAnswer, answeringId } = parsed.data;
 
   const session = await prisma.coachingSession.findUnique({ where: { id: sessionId } });
   if (!session || session.userId !== userId || session.type !== "ai_interview") {
@@ -46,12 +53,19 @@ export async function POST(req: NextRequest) {
     orderBy: { createdAt: "asc" },
   });
 
-  // The candidate just answered the most recently asked (still-unanswered)
-  // question - record it. No real-time scoring here by design: grading
-  // every turn would add a Claude round trip to the middle of a live
-  // back-and-forth conversation, which is exactly the latency this mode
-  // needs to avoid to feel like a real interview rather than a quiz app.
-  const pending = priorTurns.find((t) => t.userAnswerText === null);
+  // The candidate just answered a question - record it against that exact
+  // InteractionRecord when we know which one (answeringId), rather than
+  // guessing "most recent unanswered": if this request is a retry of one
+  // that actually succeeded server-side before the client saw the
+  // response, "most recent unanswered" would now be a DIFFERENT, newer
+  // question, and this answer would get attached to the wrong one.
+  // No real-time scoring here by design: grading every turn would add a
+  // Claude round trip to the middle of a live back-and-forth conversation,
+  // which is exactly the latency this mode needs to avoid to feel like a
+  // real interview rather than a quiz app.
+  const pending = answeringId
+    ? priorTurns.find((t) => t.id === answeringId && t.userAnswerText === null)
+    : priorTurns.find((t) => t.userAnswerText === null);
   if (previousAnswer && pending) {
     await prisma.interactionRecord.update({
       where: { id: pending.id },
@@ -145,12 +159,15 @@ export async function POST(req: NextRequest) {
     return withCors(req, NextResponse.json({ success: false, message: "Could not generate the next question." }, { status: 502 }));
   }
 
-  await prisma.interactionRecord.create({
+  const created = await prisma.interactionRecord.create({
     data: { sessionId, questionText: question, userAnswerText: null },
   });
 
   return withCors(
     req,
-    NextResponse.json({ success: true, data: { done: false, question, questionNumber: answeredCount + 1 } })
+    NextResponse.json({
+      success: true,
+      data: { done: false, question, questionId: created.id, questionNumber: answeredCount + 1 },
+    })
   );
 }
