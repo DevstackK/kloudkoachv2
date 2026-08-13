@@ -308,6 +308,21 @@ export default function AiInterviewerPage() {
 
         {status === "stopped" && turns.length === 0 && <Alert severity="info">Session ended with no recorded turns.</Alert>}
 
+        {status === "stopped" && turns.length > 0 && sessionId && (
+          <Alert
+            severity="info"
+            sx={{ mb: 3 }}
+            action={
+              <Button component={Link} href={`/dashboard/analytics/${sessionId}`} color="inherit" size="small" startIcon={<AssessmentIcon />}>
+                View Transcript
+              </Button>
+            }
+          >
+            Interview ended early — {turns.length} question{turns.length === 1 ? "" : "s"} recorded. The full transcript is
+            saved.
+          </Alert>
+        )}
+
         {/* Current question: always shown prominently, spoken aloud too */}
         {currentTurn && (
           <Paper

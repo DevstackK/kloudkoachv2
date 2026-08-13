@@ -25,6 +25,7 @@ import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import AssessmentIcon from "@mui/icons-material/Assessment";
 import { useCoachSession } from "@/hooks/useCoachSession";
 import CompanionQrButton from "@/components/CompanionQrButton";
 
@@ -210,6 +211,20 @@ export default function LiveInterviewPage() {
           <Alert severity="info">Session ended with no recorded turns.</Alert>
         )}
 
+        {status === "stopped" && turns.length > 0 && sessionId && (
+          <Alert
+            severity="info"
+            sx={{ mb: 3 }}
+            action={
+              <Button component={Link} href={`/dashboard/analytics/${sessionId}`} color="inherit" size="small" startIcon={<AssessmentIcon />}>
+                View Transcript
+              </Button>
+            }
+          >
+            Session ended — {turns.length} question{turns.length === 1 ? "" : "s"} recorded. The full transcript is saved.
+          </Alert>
+        )}
+
         {interimTranscript && (
           <Paper
             elevation={0}
@@ -242,6 +257,9 @@ export default function LiveInterviewPage() {
               backdropFilter: transparentMode ? "blur(10px)" : "none",
             }}
           >
+            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+              Heard: &quot;{latestTurn.question}&quot;
+            </Typography>
             <Typography variant="h6" color="primary.main" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.5, fontWeight: 500 }}>
               {latestTurn.answer}
               {latestTurn.isStreaming && <CircularProgress size={14} sx={{ ml: 1 }} />}
@@ -276,6 +294,9 @@ export default function LiveInterviewPage() {
               backdropFilter: transparentMode ? "blur(6px)" : "none",
             }}
           >
+            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+              Heard: &quot;{turn.question}&quot;
+            </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-wrap" }}>
               {turn.answer}
             </Typography>
