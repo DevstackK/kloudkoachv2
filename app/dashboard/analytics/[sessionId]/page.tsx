@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import { Container, Paper, Typography, Box, Chip, CircularProgress, Divider, LinearProgress } from "@mui/material";
+import { Container, Paper, Typography, Box, Chip, CircularProgress, Divider, LinearProgress, Alert } from "@mui/material";
+import { fetchWithAuthRetry } from "@/lib/fetchWithAuthRetry";
 
 type Interaction = {
   id: string;
@@ -28,13 +29,24 @@ export default function SessionAnalyticsPage() {
   const params = useParams<{ sessionId: string }>();
   const [session, setSession] = React.useState<SessionDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`/api/coach/session/${params.sessionId}`, { credentials: "include" });
+        // A long live-interview session can easily outlast the short-lived
+        // access-token cookie, so the very first click on "View Transcript"
+        // right after such a session can hit a stale 401 - retry with a
+        // silent token refresh before giving up.
+        const res = await fetchWithAuthRetry(`/api/coach/session/${params.sessionId}`, { credentials: "include" });
         const json = await res.json();
-        if (json.success) setSession(json.data);
+        if (json.success) {
+          setSession(json.data);
+        } else {
+          setLoadError(json.message || "Session not found.");
+        }
+      } catch {
+        setLoadError("Could not load this session. Check your connection and try again.");
       } finally {
         setLoading(false);
       }
@@ -51,10 +63,8 @@ export default function SessionAnalyticsPage() {
 
   if (!session) {
     return (
-      <Container sx={{ py: 10 }}>
-        <Typography align="center" color="text.secondary">
-          Session not found.
-        </Typography>
+      <Container maxWidth="sm" sx={{ py: 10 }}>
+        <Alert severity="error">{loadError || "Session not found."}</Alert>
       </Container>
     );
   }

@@ -3,6 +3,7 @@
 import * as React from "react";
 import NextLink from "next/link";
 import { Container, Paper, Typography, Box, Chip, CircularProgress, List, ListItemButton, ListItemText } from "@mui/material";
+import { fetchWithAuthRetry } from "@/lib/fetchWithAuthRetry";
 
 type SessionRow = {
   id: string;
@@ -27,7 +28,7 @@ export default function SessionHistoryPage() {
   React.useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/coach/session/history", { credentials: "include" });
+        const res = await fetchWithAuthRetry("/api/coach/session/history", { credentials: "include" });
         const json = await res.json();
         if (json.success) setSessions(json.data);
       } finally {

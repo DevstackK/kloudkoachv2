@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { fetchWithAuthRetry } from "@/lib/fetchWithAuthRetry";
 
 export type InterviewerTurn = {
   question: string;
@@ -72,19 +73,6 @@ export function useAiInterviewer() {
   const lastAnswerRef = React.useRef<string>("");
   const stoppedRef = React.useRef(false);
   const resumePointRef = React.useRef<ResumePoint>({ type: "question" });
-
-  // A 401 here almost always means the short-lived access-token cookie
-  // expired mid-interview, not that the user is actually logged out - the
-  // refresh-token cookie is still valid. Silently reissue it and retry
-  // once before surfacing anything to the user.
-  const fetchWithAuthRetry = React.useCallback(async (url: string, options: RequestInit) => {
-    let res = await fetch(url, options);
-    if (res.status === 401) {
-      await fetch("/api/auth/me", { credentials: "include" }).catch(() => {});
-      res = await fetch(url, options);
-    }
-    return res;
-  }, []);
 
   const speak = React.useCallback(
     async (text: string) => {
