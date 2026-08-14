@@ -26,6 +26,7 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { useAiInterviewer } from "@/hooks/useAiInterviewer";
+import { useBeforeUnloadWarning } from "@/hooks/useBeforeUnloadWarning";
 import { extractTextFromFile } from "@/lib/extractText";
 
 const statusLabel: Record<string, string> = {
@@ -111,6 +112,7 @@ export default function AiInterviewerPage() {
 
   const isActive =
     status === "asking" || status === "listening" || status === "thinking" || status === "connecting" || status === "scoring";
+  useBeforeUnloadWarning(isActive);
   const hasEnded = status === "done" || status === "stopped";
   // A failure mid-interview (most commonly the access-token cookie
   // expiring - interviews can run past its ~15min lifetime) shouldn't

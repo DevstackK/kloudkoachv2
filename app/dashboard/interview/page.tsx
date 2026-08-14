@@ -27,6 +27,7 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import { useCoachSession } from "@/hooks/useCoachSession";
+import { useBeforeUnloadWarning } from "@/hooks/useBeforeUnloadWarning";
 import CompanionQrButton from "@/components/CompanionQrButton";
 
 const statusLabel: Record<string, string> = {
@@ -56,6 +57,7 @@ export default function LiveInterviewPage() {
   const { status, interimTranscript, turns, error, sessionId, start, stop, retryLastResponse } = useCoachSession();
 
   const isActive = status === "listening" || status === "thinking" || status === "connecting";
+  useBeforeUnloadWarning(isActive);
   const latestTurn = turns[turns.length - 1];
   const earlierTurns = turns.slice(0, -1).reverse();
 
