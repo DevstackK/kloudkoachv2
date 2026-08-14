@@ -22,6 +22,8 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import NotesIcon from "@mui/icons-material/Notes";
 import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import Link from "next/link";
 import { useCoachSession } from "@/hooks/useCoachSession";
 import { useBeforeUnloadWarning } from "@/hooks/useBeforeUnloadWarning";
 import CompanionQrButton from "@/components/CompanionQrButton";
@@ -164,6 +166,20 @@ export default function InterviewPreparationPage() {
 
         {status === "stopped" && turns.length === 0 && (
           <Alert severity="info">Session ended with no recorded turns.</Alert>
+        )}
+
+        {status === "stopped" && turns.length > 0 && sessionId && (
+          <Alert
+            severity="info"
+            sx={{ mb: 3 }}
+            action={
+              <Button component={Link} href={`/dashboard/analytics/${sessionId}`} color="inherit" size="small" startIcon={<AssessmentIcon />}>
+                View Transcript
+              </Button>
+            }
+          >
+            Session ended — {turns.length} question{turns.length === 1 ? "" : "s"} recorded. The full transcript is saved.
+          </Alert>
         )}
 
         {interimTranscript && (

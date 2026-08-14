@@ -35,3 +35,6 @@ yarn-debug.log*
 yarn-error.log*
 
 .vercel
+
+# agent skills (machine-specific symlinks; actual content lives in .agents/skills)
+.claude/skills
