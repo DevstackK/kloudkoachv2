@@ -2,8 +2,16 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import { Container, Paper, Typography, Box, Chip, CircularProgress, Divider, LinearProgress, Alert } from "@mui/material";
+import { Container, Paper, Typography, Box, Chip, CircularProgress, Divider, LinearProgress, Alert, Button } from "@mui/material";
+import DownloadIcon from "@mui/icons-material/Download";
 import { fetchWithAuthRetry } from "@/lib/fetchWithAuthRetry";
+
+const typeLabel: Record<string, string> = {
+  live_interview: "Live Interview",
+  mock_interview: "Interview Preparation",
+  ai_interview: "AI Interviewer",
+  exam_prep: "Exam Prep",
+};
 
 type Interaction = {
   id: string;
@@ -69,9 +77,49 @@ export default function SessionAnalyticsPage() {
     );
   }
 
+  const handleDownload = () => {
+    const lines: string[] = [];
+    lines.push(session.jobRole || "Kloud Koach Session");
+    lines.push(`${typeLabel[session.type] || session.type} · ${new Date(session.startedAt).toLocaleString()}`);
+    if (session.durationMinutes) lines.push(`Duration: ${session.durationMinutes} min`);
+    if (session.averageScore !== null) lines.push(`Average score: ${session.averageScore.toFixed(1)}/10`);
+    lines.push("");
+    lines.push("=".repeat(60));
+
+    session.interactions.forEach((turn, i) => {
+      lines.push("");
+      lines.push(`Q${i + 1}: ${turn.questionText}`);
+      if (turn.suggestedAnswer) {
+        lines.push("");
+        lines.push(`Suggested answer: ${turn.suggestedAnswer}`);
+      }
+      if (turn.userAnswerText) {
+        lines.push("");
+        lines.push(`Your answer: ${turn.userAnswerText}`);
+      }
+      if (turn.rating !== null) {
+        lines.push("");
+        lines.push(`Rating: ${turn.rating}/10`);
+        if (turn.feedback) lines.push(`Feedback: ${turn.feedback}`);
+      }
+      lines.push("-".repeat(60));
+    });
+
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeRole = (session.jobRole || "session").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    a.href = url;
+    a.download = `kloudkoach-transcript-${safeRole || "session"}-${session.id.slice(0, 8)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Container maxWidth="md" sx={{ py: 6, flex: 1 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3}>
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3} gap={2}>
         <Box>
           <Typography variant="h5" fontWeight="bold">
             {session.jobRole || "Session"}
@@ -81,9 +129,16 @@ export default function SessionAnalyticsPage() {
             {session.durationMinutes ? ` · ${session.durationMinutes} min` : ""}
           </Typography>
         </Box>
-        {session.averageScore !== null && (
-          <Chip label={`${session.averageScore.toFixed(1)}/10 average`} color="primary" sx={{ fontWeight: "bold" }} />
-        )}
+        <Box display="flex" alignItems="center" gap={1.5} flexShrink={0}>
+          {session.averageScore !== null && (
+            <Chip label={`${session.averageScore.toFixed(1)}/10 average`} color="primary" sx={{ fontWeight: "bold" }} />
+          )}
+          {session.interactions.length > 0 && (
+            <Button variant="outlined" size="small" startIcon={<DownloadIcon />} onClick={handleDownload} sx={{ textTransform: "none" }}>
+              Download
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {session.interactions.length === 0 ? (
