@@ -12,7 +12,7 @@
  * observability layer for this app.
  */
 type AiCallLog = {
-  provider: "anthropic" | "deepgram";
+  provider: "anthropic" | "deepgram" | "speechace";
   route: string;
   userId?: string | null;
   model?: string;

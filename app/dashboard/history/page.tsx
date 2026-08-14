@@ -7,7 +7,7 @@ import { fetchWithAuthRetry } from "@/lib/fetchWithAuthRetry";
 
 type SessionRow = {
   id: string;
-  type: "live_interview" | "mock_interview" | "exam_prep";
+  type: "live_interview" | "mock_interview" | "exam_prep" | "ai_interview" | "pronunciation_practice";
   jobRole: string | null;
   status: string;
   startedAt: string;
@@ -19,6 +19,8 @@ const typeLabel: Record<SessionRow["type"], string> = {
   live_interview: "Live Interview",
   mock_interview: "Mock Interview",
   exam_prep: "Exam Prep",
+  ai_interview: "AI Interviewer",
+  pronunciation_practice: "Pronunciation Practice",
 };
 
 export default function SessionHistoryPage() {

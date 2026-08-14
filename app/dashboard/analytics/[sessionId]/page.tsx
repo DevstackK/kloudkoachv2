@@ -11,6 +11,7 @@ const typeLabel: Record<string, string> = {
   mock_interview: "Interview Preparation",
   ai_interview: "AI Interviewer",
   exam_prep: "Exam Prep",
+  pronunciation_practice: "Pronunciation Practice",
 };
 
 type Interaction = {

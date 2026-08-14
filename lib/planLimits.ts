@@ -24,10 +24,10 @@ async function getUsed(userId: string, featureCode: FeatureCode, periodStart: Da
 
   // MOCK_INTERVIEW - CountBased, one unit per session started (matches the
   // "sessions/mo" unit regardless of whether the user finished it).
-  // ai_interview shares this quota with mock_interview - see the comment
-  // in /api/coach/session/route.ts.
+  // ai_interview and pronunciation_practice share this quota with
+  // mock_interview - see the comment in /api/coach/session/route.ts.
   return prisma.coachingSession.count({
-    where: { userId, type: { in: ["mock_interview", "ai_interview"] }, startedAt: { gte: periodStart } },
+    where: { userId, type: { in: ["mock_interview", "ai_interview", "pronunciation_practice"] }, startedAt: { gte: periodStart } },
   });
 }
 

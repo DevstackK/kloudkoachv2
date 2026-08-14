@@ -8,7 +8,9 @@ import ModelTrainingIcon from "@mui/icons-material/ModelTraining";
 import HeadsetMicIcon from "@mui/icons-material/HeadsetMic";
 import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import SchoolIcon from "@mui/icons-material/School";
+import GraphicEqIcon from "@mui/icons-material/GraphicEq";
 import LockIcon from "@mui/icons-material/Lock";
+import ConstructionIcon from "@mui/icons-material/Construction";
 import { useAuth } from "@/lib/AuthProvider";
 
 const options = [
@@ -47,6 +49,17 @@ const options = [
     featureCode: "EXAM_PREP",
     icon: <SchoolIcon sx={{ fontSize: 40 }} />,
   },
+  {
+    title: "Pronunciation Practice",
+    description: "Read a sentence aloud and get instant word-by-word pronunciation scoring.",
+    path: "/dashboard/pronunciation",
+    featureCode: "MOCK_INTERVIEW",
+    icon: <GraphicEqIcon sx={{ fontSize: 40 }} />,
+    // Built and tested against the Speechace API, just waiting on the
+    // production API key - flip off once SPEECHACE_API_KEY is set
+    // (matches the COMING_SOON flag in the page itself).
+    comingSoon: true,
+  },
 ];
 
 export default function DashboardHomePage() {
@@ -66,7 +79,7 @@ export default function DashboardHomePage() {
 
       <Grid container spacing={3} justifyContent="center" alignItems="stretch">
         {options.map((option) => {
-          const isAllowed = checkAccess(option.featureCode);
+          const isAllowed = !option.comingSoon && checkAccess(option.featureCode);
 
           return (
             <Grid item key={option.title} xs={12} sm={6} md={4} sx={{ display: "flex" }}>
@@ -94,7 +107,7 @@ export default function DashboardHomePage() {
               >
                 <CardActionArea
                   component={NextLink}
-                  href={isAllowed ? option.path : "/dashboard/upgrade"}
+                  href={option.comingSoon ? option.path : isAllowed ? option.path : "/dashboard/upgrade"}
                   sx={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-start" }}
                 >
                   <CardContent sx={{ p: 4, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", flexGrow: 1 }}>
@@ -107,7 +120,7 @@ export default function DashboardHomePage() {
                         color: "white",
                       }}
                     >
-                      {isAllowed ? option.icon : <LockIcon fontSize="large" />}
+                      {isAllowed ? option.icon : option.comingSoon ? <ConstructionIcon fontSize="large" /> : <LockIcon fontSize="large" />}
                     </Box>
 
                     <Typography gutterBottom variant="h6" component="div" sx={{ fontWeight: "bold", color: "text.primary" }}>
@@ -118,8 +131,12 @@ export default function DashboardHomePage() {
                       {option.description}
                     </Typography>
 
-                    {!isAllowed && (
-                      <Chip label="Upgrade Plan" size="small" color="secondary" variant="filled" sx={{ mt: "auto", fontWeight: "bold" }} />
+                    {option.comingSoon ? (
+                      <Chip label="Coming Soon" size="small" color="default" variant="filled" sx={{ mt: "auto", fontWeight: "bold" }} />
+                    ) : (
+                      !isAllowed && (
+                        <Chip label="Upgrade Plan" size="small" color="secondary" variant="filled" sx={{ mt: "auto", fontWeight: "bold" }} />
+                      )
                     )}
                   </CardContent>
                 </CardActionArea>

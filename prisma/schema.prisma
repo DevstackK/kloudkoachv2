@@ -27,6 +27,7 @@ enum CoachingSessionType {
   mock_interview
   exam_prep
   ai_interview
+  pronunciation_practice
 }
 
 enum CoachingSessionStatus {

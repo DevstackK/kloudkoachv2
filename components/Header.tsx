@@ -37,6 +37,7 @@ const mainNavLinks = [
   { title: "Live Interview Co-Pilot", path: "/dashboard/interview" },
   { title: "Interview Preparation", path: "/dashboard/interview-preparation" },
   { title: "AI Interviewer", path: "/dashboard/ai-interviewer" },
+  { title: "Pronunciation Practice", path: "/dashboard/pronunciation" },
   { title: "Resume Builder", path: "/dashboard/resume-builder" },
 ];
 
