@@ -1,38 +1,78 @@
 WEBVTT
 
+STYLE
+::cue {
+  background-color: rgba(24, 10, 36, 0.78);
+  color: #ffffff;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 1.3em;
+  line-height: 1.4;
+}
+
 1
-00:00:00.300 --> 00:00:08.290
-Welcome to Kloud Koach, your AI-powered interview coach. Let's take a quick tour.
-First, create your free account in just a few seconds.
+00:00:00.300 --> 00:00:04.200
+Welcome to Kloud Koach, your AI-powered interview coach.
 
 2
-00:00:09.500 --> 00:00:18.090
-This is your dashboard, the home base for every coaching tool Kloud Koach offers:
-three ways to practice, plus tools to prep your resume and study materials.
+00:00:04.200 --> 00:00:08.290
+Let's take a quick tour — first, create your free account in just a few seconds.
 
 3
-00:00:19.300 --> 00:00:30.350
-Live Interview Co-Pilot listens in on a real interview call in another tab, and
-quietly suggests answers in real time. It's meant to help you think clearly,
-not to answer for you.
+00:00:09.500 --> 00:00:13.700
+This is your dashboard — home base for every coaching tool Kloud Koach offers.
 
 4
-00:00:31.600 --> 00:00:41.070
-Interview Preparation lets you rehearse out loud with your microphone. Ask a
-practice question, and get a natural, spoken-style answer tailored to your resume.
+00:00:13.700 --> 00:00:18.090
+Three ways to practice, plus tools to prep your resume and study materials.
 
 5
-00:00:42.300 --> 00:00:53.350
-AI Interviewer takes it further. A simulated interviewer asks you real questions
-out loud, one at a time, tailored to your uploaded resume, and gives you a full
-score and feedback at the end.
+00:00:19.300 --> 00:00:24.000
+Live Interview Co-Pilot listens in on a real interview call in another tab,
 
 6
-00:00:54.600 --> 00:01:07.970
-Upload your resume, and Kloud Koach AI structures it automatically. You can even
-tailor it to a specific job description with one click. Exam prep, session
-history, and plan upgrades are all just as easy to find.
+00:00:24.000 --> 00:00:27.000
+and quietly suggests answers in real time.
 
 7
-00:01:09.200 --> 00:01:14.350
-That's Kloud Koach. Log in, pick a mode, and start practicing. Good luck out there.
+00:00:27.000 --> 00:00:30.350
+It's meant to help you think clearly — not to answer for you.
+
+8
+00:00:31.600 --> 00:00:36.000
+Interview Preparation lets you rehearse out loud with your microphone.
+
+9
+00:00:36.000 --> 00:00:41.070
+Ask a practice question, and get a natural, spoken-style answer tailored to your resume.
+
+10
+00:00:42.300 --> 00:00:46.000
+AI Interviewer takes it further.
+
+11
+00:00:46.000 --> 00:00:50.000
+A simulated interviewer asks real questions out loud, tailored to your resume.
+
+12
+00:00:50.000 --> 00:00:53.350
+and gives you a full score and feedback at the end.
+
+13
+00:00:54.600 --> 00:00:59.000
+Upload your resume, and Kloud Koach AI structures it automatically.
+
+14
+00:00:59.000 --> 00:01:03.500
+You can even tailor it to a specific job description with one click.
+
+15
+00:01:03.500 --> 00:01:07.970
+Exam prep, session history, and plan upgrades are all just as easy to find.
+
+16
+00:01:09.200 --> 00:01:12.000
+That's Kloud Koach.
+
+17
+00:01:12.000 --> 00:01:14.350
+Log in, pick a mode, and start practicing. Good luck out there.
