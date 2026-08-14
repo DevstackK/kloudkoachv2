@@ -6,15 +6,18 @@ import { withCors, corsPreflight } from "@/lib/cors";
 import { checkFeatureLimit, type FeatureCode } from "@/lib/planLimits";
 
 // ai_interview shares the MOCK_INTERVIEW quota - both are practice
-// sessions, not worth a separate PlanFeature row for now.
-const featureCodeForType: Record<"live_interview" | "mock_interview" | "ai_interview", FeatureCode> = {
+// sessions, not worth a separate PlanFeature row for now. meeting_helper
+// shares LIVE_INTERVIEW's time-based quota - same "listens to a real live
+// audio source and suggests responses" shape as live_interview.
+const featureCodeForType: Record<"live_interview" | "mock_interview" | "ai_interview" | "meeting_helper", FeatureCode> = {
   live_interview: "LIVE_INTERVIEW",
   mock_interview: "MOCK_INTERVIEW",
   ai_interview: "MOCK_INTERVIEW",
+  meeting_helper: "LIVE_INTERVIEW",
 };
 
 const schema = z.object({
-  type: z.enum(["live_interview", "mock_interview", "ai_interview"]),
+  type: z.enum(["live_interview", "mock_interview", "ai_interview", "meeting_helper"]),
   jobRole: z.string().min(1),
   jobDescription: z.string().optional(),
   answerStyle: z.enum(["prose", "bullets"]).optional(),

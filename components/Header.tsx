@@ -29,6 +29,8 @@ import PersonIcon from "@mui/icons-material/Person";
 import StarIcon from "@mui/icons-material/Star";
 import ExtensionIcon from "@mui/icons-material/Extension";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import MedicalServicesIcon from "@mui/icons-material/MedicalServices";
+import GroupsIcon from "@mui/icons-material/Groups";
 import { useAuth } from "@/lib/AuthProvider";
 import { useColorMode } from "@/app/ThemeRegistry";
 
@@ -42,6 +44,8 @@ const mainNavLinks = [
 ];
 
 const userDropdownLinks = [
+  { title: "Virtual Patient", path: "/dashboard/virtual-patient", icon: <MedicalServicesIcon fontSize="small" /> },
+  { title: "Meeting Helper", path: "/dashboard/meeting-helper", icon: <GroupsIcon fontSize="small" /> },
   { title: "Upgrade Plan", path: "/dashboard/upgrade", icon: <StarIcon fontSize="small" /> },
   { title: "History", path: "/dashboard/history", icon: <HistoryIcon fontSize="small" /> },
   { title: "Connect Extension", path: "/dashboard/extension", icon: <ExtensionIcon fontSize="small" /> },

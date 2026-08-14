@@ -78,22 +78,37 @@ export async function POST(req: NextRequest) {
   ]);
   priorTurns.reverse(); // back to chronological order
 
-  const systemPromptText = [
-    `You are Kloud Koach, an AI interview coach helping ${user?.name ?? "a candidate"} in a live ${session.type === "live_interview" ? "job interview" : "mock interview practice session"} for the role: ${session.jobRole}.`,
-    session.jobDescription ? `Job description context:\n${session.jobDescription.slice(0, 1500)}` : null,
-    // Trimmed resume context: the live loop pays for this on every cache
-    // miss, so keep it tight - full-fidelity resume text is only needed
-    // for the one-time parsing call, not every coaching turn.
-    activeResume ? `Candidate's resume:\n${activeResume.rawText.slice(0, 3000)}` : null,
-    "Answer as the candidate would, in first person - confident, natural, and SHORT (1-3 sentences; only go longer if the question genuinely can't be answered in fewer). " +
-      "Output ONLY the spoken answer itself - never restate, paraphrase, or acknowledge the question first (no \"That's a great question about...\", no repeating any part of it back). " +
-      "Ground answers in the resume/job context where relevant. Never mention that you are an AI or that this is generated.",
-    session.answerStyle === "bullets"
-      ? "Format the answer as 2-4 short bullet points (start each with \"- \") instead of full sentences - each bullet a quick phrase or clause the candidate can glance at and say naturally, not a complete written sentence. Still no preamble or restating the question."
-      : null,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const isMeetingHelper = session.type === "meeting_helper";
+
+  const systemPromptText = isMeetingHelper
+    ? [
+        `You are Kloud Koach, a quiet AI meeting co-pilot helping ${user?.name ?? "a professional"} think and respond during a live work meeting${session.jobRole ? ` ("${session.jobRole}")` : ""}.`,
+        session.jobDescription ? `Meeting context/agenda notes:\n${session.jobDescription.slice(0, 1500)}` : null,
+        activeResume ? `${user?.name ?? "The user"}'s background, for grounding suggestions:\n${activeResume.rawText.slice(0, 2000)}` : null,
+        "Someone in the meeting just said something (a question directed at the user, a discussion point, or a decision being made) - suggest what the user could say next. " +
+          "Write it as something the user would say themselves, first person, natural and concise (1-3 sentences; a short bullet list only if it genuinely helps organize a multi-part point). " +
+          "If it's clearly not something worth responding to (small talk, a comment for someone else), suggest nothing useful rather than forcing a reply - keep it to one short neutral line in that case. " +
+          "Output ONLY the suggested thing to say - no meta-commentary, no \"you could say...\" framing, no restating what was heard.",
+        session.answerStyle === "bullets"
+          ? "Format as 2-4 short bullet points (start each with \"- \") instead of full sentences - each bullet a quick phrase the user can glance at and say naturally."
+          : null,
+      ]
+    : [
+        `You are Kloud Koach, an AI interview coach helping ${user?.name ?? "a candidate"} in a live ${session.type === "live_interview" ? "job interview" : "mock interview practice session"} for the role: ${session.jobRole}.`,
+        session.jobDescription ? `Job description context:\n${session.jobDescription.slice(0, 1500)}` : null,
+        // Trimmed resume context: the live loop pays for this on every cache
+        // miss, so keep it tight - full-fidelity resume text is only needed
+        // for the one-time parsing call, not every coaching turn.
+        activeResume ? `Candidate's resume:\n${activeResume.rawText.slice(0, 3000)}` : null,
+        "Answer as the candidate would, in first person - confident, natural, and SHORT (1-3 sentences; only go longer if the question genuinely can't be answered in fewer). " +
+          "Output ONLY the spoken answer itself - never restate, paraphrase, or acknowledge the question first (no \"That's a great question about...\", no repeating any part of it back). " +
+          "Ground answers in the resume/job context where relevant. Never mention that you are an AI or that this is generated.",
+        session.answerStyle === "bullets"
+          ? "Format the answer as 2-4 short bullet points (start each with \"- \") instead of full sentences - each bullet a quick phrase or clause the candidate can glance at and say naturally, not a complete written sentence. Still no preamble or restating the question."
+          : null,
+      ];
+
+  const systemPrompt = systemPromptText.filter(Boolean).join("\n\n");
 
   const messages: { role: "user" | "assistant"; content: string }[] = [];
   const olderCount = Math.max(0, priorTurns.length - FULL_HISTORY_TURNS);
@@ -131,7 +146,7 @@ export async function POST(req: NextRequest) {
           // prompt's "1-3 sentences" instruction does the real length
           // control for the common case - this is just a safety ceiling.
           max_tokens: 400,
-          system: cachedSystem(systemPromptText),
+          system: cachedSystem(systemPrompt),
           messages,
         });
 

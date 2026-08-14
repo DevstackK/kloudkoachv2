@@ -13,7 +13,7 @@ export type CoachTurn = {
 export type CoachStatus = "idle" | "connecting" | "listening" | "thinking" | "error" | "stopped";
 
 type StartParams = {
-  type: "mock_interview" | "live_interview";
+  type: "mock_interview" | "live_interview" | "meeting_helper";
   jobRole: string;
   jobDescription?: string;
   // "tab" captures another shared browser tab's audio (e.g. a Meet/Zoom-web

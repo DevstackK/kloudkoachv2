@@ -28,6 +28,8 @@ enum CoachingSessionType {
   exam_prep
   ai_interview
   pronunciation_practice
+  virtual_patient
+  meeting_helper
 }
 
 enum CoachingSessionStatus {

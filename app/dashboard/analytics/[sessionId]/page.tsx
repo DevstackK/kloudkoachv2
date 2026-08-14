@@ -12,6 +12,8 @@ const typeLabel: Record<string, string> = {
   ai_interview: "AI Interviewer",
   exam_prep: "Exam Prep",
   pronunciation_practice: "Pronunciation Practice",
+  virtual_patient: "Virtual Patient",
+  meeting_helper: "Meeting Helper",
 };
 
 type Interaction = {

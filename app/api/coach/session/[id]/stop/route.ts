@@ -50,7 +50,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Interviewer's actual transcribed CANDIDATE answer ("how did the
   // candidate do"). Both get scored the same way, just described
   // accurately in the prompt so Claude evaluates from the right angle.
-  const unratedTurns = session.interactions.filter((i) => i.rating === null && (i.suggestedAnswer || i.userAnswerText));
+  // virtual_patient is a different shape entirely - suggestedAnswer there
+  // holds the AI patient's in-character dialogue, not something to grade,
+  // and its one real score (the final diagnosis) is already rated by
+  // /api/virtual-patient/diagnose before this route ever runs.
+  const eligibleForAutoRating = session.type !== "virtual_patient";
+  const unratedTurns = eligibleForAutoRating
+    ? session.interactions.filter((i) => i.rating === null && (i.suggestedAnswer || i.userAnswerText))
+    : [];
   if (unratedTurns.length > 0) {
     try {
       const result = await generateStructured<{ ratings: { interactionId: string; rating: number; feedback: string }[] }>({

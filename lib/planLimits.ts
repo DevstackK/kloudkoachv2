@@ -14,9 +14,10 @@ export type FeatureLimitCheck = {
 
 async function getUsed(userId: string, featureCode: FeatureCode, periodStart: Date): Promise<number> {
   if (featureCode === "LIVE_INTERVIEW") {
-    // TimeBased - measured in minutes actually spent in completed live sessions.
+    // TimeBased - measured in minutes actually spent in completed live
+    // sessions. meeting_helper shares this quota with live_interview.
     const agg = await prisma.coachingSession.aggregate({
-      where: { userId, type: "live_interview", status: "completed", startedAt: { gte: periodStart } },
+      where: { userId, type: { in: ["live_interview", "meeting_helper"] }, status: "completed", startedAt: { gte: periodStart } },
       _sum: { durationMinutes: true },
     });
     return agg._sum.durationMinutes ?? 0;
@@ -24,10 +25,15 @@ async function getUsed(userId: string, featureCode: FeatureCode, periodStart: Da
 
   // MOCK_INTERVIEW - CountBased, one unit per session started (matches the
   // "sessions/mo" unit regardless of whether the user finished it).
-  // ai_interview and pronunciation_practice share this quota with
-  // mock_interview - see the comment in /api/coach/session/route.ts.
+  // ai_interview, pronunciation_practice, and virtual_patient share this
+  // quota with mock_interview - see the comment in
+  // /api/coach/session/route.ts.
   return prisma.coachingSession.count({
-    where: { userId, type: { in: ["mock_interview", "ai_interview", "pronunciation_practice"] }, startedAt: { gte: periodStart } },
+    where: {
+      userId,
+      type: { in: ["mock_interview", "ai_interview", "pronunciation_practice", "virtual_patient"] },
+      startedAt: { gte: periodStart },
+    },
   });
 }
 
