@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import NextLink from "next/link";
-import { Container, Paper, Typography, Box, Divider, List, ListItemButton, ListItemText, ListItemIcon } from "@mui/material";
+import { Container, Paper, Typography, Box, Divider, List, ListItemButton, ListItemText, ListItemIcon, Button } from "@mui/material";
 import ScreenShareIcon from "@mui/icons-material/ScreenShare";
 import MicIcon from "@mui/icons-material/Mic";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import HistoryIcon from "@mui/icons-material/History";
 import StarIcon from "@mui/icons-material/Star";
+import DownloadIcon from "@mui/icons-material/Download";
 
 const quickLinks = [
   { title: "Live Interview Co-Pilot", path: "/dashboard/interview", icon: <ScreenShareIcon fontSize="small" /> },
@@ -25,9 +26,21 @@ export default function HelpPage() {
       <Typography variant="h5" fontWeight="bold" gutterBottom>
         How to Use Kloud Koach
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        A quick two-minute tour of every coaching tool, from creating your account to reviewing your transcripts.
-      </Typography>
+      <Box display="flex" alignItems="flex-start" justifyContent="space-between" gap={2} sx={{ mb: 3 }}>
+        <Typography variant="body2" color="text.secondary">
+          A quick two-minute tour of every coaching tool, from creating your account to reviewing your transcripts.
+        </Typography>
+        <Button
+          href="/tutorial/kloudkoach-tutorial.mp4"
+          download
+          variant="outlined"
+          size="small"
+          startIcon={<DownloadIcon />}
+          sx={{ textTransform: "none", flexShrink: 0 }}
+        >
+          Download
+        </Button>
+      </Box>
 
       <Paper
         elevation={0}
@@ -48,7 +61,7 @@ export default function HelpPage() {
       </Paper>
 
       <Paper elevation={0} sx={{ p: 3, borderRadius: "16px", border: "1px solid", borderColor: "divider" }}>
-        <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+        <Typography variant="subtitle2" fontWeight={600} gutterBottom>
           Jump to a feature
         </Typography>
         <Divider sx={{ mb: 1 }} />
@@ -56,7 +69,7 @@ export default function HelpPage() {
           {quickLinks.map((link) => (
             <ListItemButton key={link.path} component={NextLink} href={link.path} sx={{ borderRadius: "10px" }}>
               <ListItemIcon sx={{ minWidth: 36 }}>{link.icon}</ListItemIcon>
-              <ListItemText primary={link.title} />
+              <ListItemText primary={link.title} primaryTypographyProps={{ variant: "body2" }} />
             </ListItemButton>
           ))}
         </List>

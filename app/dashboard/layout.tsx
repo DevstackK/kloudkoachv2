@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Box, CircularProgress } from "@mui/material";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import TutorialFab from "@/components/TutorialFab";
 import { useAuth } from "@/lib/AuthProvider";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -30,6 +31,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Header />
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>{children}</Box>
       <Footer />
+      <TutorialFab />
     </Box>
   );
 }
