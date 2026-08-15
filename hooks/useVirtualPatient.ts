@@ -45,8 +45,14 @@ export function useVirtualPatient() {
   const sessionIdRef = React.useRef<string | null>(null);
   const audioElRef = React.useRef<HTMLAudioElement | null>(null);
   const stopRef = React.useRef<() => void>(() => {});
+  // Guards every in-flight respond/speak chain against a stop() that
+  // happens mid-flight - without this, a question asked right before
+  // "End Interview" still finishes generating and speaking afterward,
+  // since nothing else cancels those already-running async calls.
+  const stoppedRef = React.useRef(false);
 
   const speak = React.useCallback(async (text: string) => {
+    if (stoppedRef.current) return;
     setStatus("speaking");
     try {
       const res = await fetchWithAuthRetry("/api/interviewer/speak", {
@@ -57,6 +63,7 @@ export function useVirtualPatient() {
       });
       if (!res.ok) throw new Error("Could not play the patient's voice.");
       const blob = await res.blob();
+      if (stoppedRef.current) return;
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioElRef.current = audio;
@@ -69,19 +76,24 @@ export function useVirtualPatient() {
           URL.revokeObjectURL(url);
           resolve(); // non-fatal - the text is already on screen either way
         };
+        if (stoppedRef.current) {
+          URL.revokeObjectURL(url);
+          resolve();
+          return;
+        }
         audio.play().catch(() => resolve());
       });
     } catch {
       // Non-fatal - the reply is already shown as text.
     } finally {
-      setStatus((prev) => (prev === "speaking" ? "listening" : prev));
+      setStatus((prev) => (prev === "speaking" && !stoppedRef.current ? "listening" : prev));
     }
   }, []);
 
   const respondTo = React.useCallback(
     async (question: string) => {
       const currentSessionId = sessionIdRef.current;
-      if (!currentSessionId) return;
+      if (!currentSessionId || stoppedRef.current) return;
 
       setStatus("thinking");
       setError(null);
@@ -96,6 +108,7 @@ export function useVirtualPatient() {
         });
         const json = await res.json();
         if (!res.ok || !json.success) throw new Error(json.message || "The patient didn't respond.");
+        if (stoppedRef.current) return;
 
         setTurns((prev) => {
           const next = [...prev];
@@ -104,6 +117,7 @@ export function useVirtualPatient() {
         });
         await speak(json.data.text);
       } catch (err) {
+        if (stoppedRef.current) return;
         setError(err instanceof Error ? err.message : "The patient didn't respond.");
         setStatus("listening");
       }
@@ -113,6 +127,7 @@ export function useVirtualPatient() {
 
   const start = React.useCallback(
     async (params: StartParams) => {
+      stoppedRef.current = false;
       setError(null);
       setTurns([]);
       setDiagnosisResult(null);
@@ -161,7 +176,7 @@ export function useVirtualPatient() {
             if (msg.type === "UtteranceEnd") {
               setInterimTranscript((current) => {
                 const trimmed = current.trim();
-                if (trimmed.split(/\s+/).length >= 2) respondTo(trimmed);
+                if (trimmed.split(/\s+/).length >= 2 && !stoppedRef.current) respondTo(trimmed);
                 return "";
               });
               return;
@@ -214,6 +229,11 @@ export function useVirtualPatient() {
   const stop = React.useCallback(() => {
     const hadActiveCapture = !!(mediaRecorderRef.current || wsRef.current || sessionIdRef.current);
     if (!hadActiveCapture) return;
+
+    // Set before anything else - any respond/speak chain already in
+    // flight checks this at its next await point and bails out instead
+    // of generating or speaking a new answer after the session's over.
+    stoppedRef.current = true;
 
     mediaRecorderRef.current?.stop();
     mediaRecorderRef.current = null;
