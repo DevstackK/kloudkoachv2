@@ -133,7 +133,8 @@ export default function Header() {
                   transformOrigin={{ vertical: "top", horizontal: "right" }}
                   open={Boolean(userMenuAnchorEl)}
                   onClose={() => setUserMenuAnchorEl(null)}
-                  slotProps={{ paper: { elevation: 3, sx: { borderRadius: 2, minWidth: 200, mt: 1.5 } } }}
+                  MenuListProps={{ dense: true }}
+                  slotProps={{ paper: { elevation: 3, sx: { borderRadius: 2, minWidth: 210, mt: 1.5 } } }}
                 >
                   {userDropdownLinks.map((link) => (
                     <MenuItem
@@ -142,24 +143,27 @@ export default function Header() {
                         setUserMenuAnchorEl(null);
                         router.push(link.path);
                       }}
+                      sx={{ py: 0.75, minHeight: "auto" }}
                     >
-                      <ListItemIcon>{link.icon}</ListItemIcon>
-                      <Typography>{link.title}</Typography>
+                      <ListItemIcon sx={{ minWidth: 32 }}>{link.icon}</ListItemIcon>
+                      <Typography variant="body2">{link.title}</Typography>
                     </MenuItem>
                   ))}
 
-                  <Divider />
+                  <Divider sx={{ my: 0.5 }} />
 
-                  <MenuItem onClick={toggleColorMode}>
-                    <ListItemIcon>{theme.palette.mode === "dark" ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}</ListItemIcon>
-                    <Typography>Switch Theme</Typography>
+                  <MenuItem onClick={toggleColorMode} sx={{ py: 0.75, minHeight: "auto" }}>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      {theme.palette.mode === "dark" ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
+                    </ListItemIcon>
+                    <Typography variant="body2">Switch Theme</Typography>
                   </MenuItem>
 
-                  <MenuItem onClick={handleLogout}>
-                    <ListItemIcon>
+                  <MenuItem onClick={handleLogout} sx={{ py: 0.75, minHeight: "auto" }}>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
                       <LogoutIcon fontSize="small" color="error" />
                     </ListItemIcon>
-                    <Typography color="error" fontWeight="bold">
+                    <Typography variant="body2" color="error" fontWeight="bold">
                       Logout
                     </Typography>
                   </MenuItem>
@@ -178,8 +182,9 @@ export default function Header() {
             anchorEl={mobileAnchorEl}
             open={Boolean(mobileAnchorEl)}
             onClose={() => setMobileAnchorEl(null)}
+            MenuListProps={{ dense: true }}
             sx={{ display: { xs: "block", md: "none" } }}
-            slotProps={{ paper: { elevation: 3, sx: { borderRadius: 2, mt: 1, minWidth: 200 } } }}
+            slotProps={{ paper: { elevation: 3, sx: { borderRadius: 2, mt: 1, minWidth: 200, maxHeight: "80vh" } } }}
           >
             {[...mainNavLinks, ...userDropdownLinks].map((link) => (
               <MenuItem
@@ -188,23 +193,24 @@ export default function Header() {
                   setMobileAnchorEl(null);
                   router.push(link.path);
                 }}
+                sx={{ py: 0.75, minHeight: "auto" }}
               >
-                <Typography>{link.title}</Typography>
+                <Typography variant="body2">{link.title}</Typography>
               </MenuItem>
             ))}
 
-            <Divider />
+            <Divider sx={{ my: 0.5 }} />
 
-            <MenuItem onClick={toggleColorMode}>
-              <ListItemIcon>{theme.palette.mode === "dark" ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}</ListItemIcon>
-              <Typography>Switch Theme</Typography>
+            <MenuItem onClick={toggleColorMode} sx={{ py: 0.75, minHeight: "auto" }}>
+              <ListItemIcon sx={{ minWidth: 32 }}>{theme.palette.mode === "dark" ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}</ListItemIcon>
+              <Typography variant="body2">Switch Theme</Typography>
             </MenuItem>
 
-            <MenuItem onClick={handleLogout}>
-              <ListItemIcon>
+            <MenuItem onClick={handleLogout} sx={{ py: 0.75, minHeight: "auto" }}>
+              <ListItemIcon sx={{ minWidth: 32 }}>
                 <LogoutIcon fontSize="small" color="error" />
               </ListItemIcon>
-              <Typography color="error" fontWeight="bold">
+              <Typography variant="body2" color="error" fontWeight="bold">
                 Logout
               </Typography>
             </MenuItem>

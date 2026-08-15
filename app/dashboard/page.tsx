@@ -83,22 +83,22 @@ export default function DashboardHomePage() {
   const { user, checkAccess } = useAuth();
 
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Box mb={4} textAlign="center">
-        <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 800, color: "primary.main" }}>
+    <Container maxWidth="lg" sx={{ py: 3 }}>
+      <Box mb={2.5} textAlign="center">
+        <Typography variant="h5" component="h1" gutterBottom sx={{ fontWeight: 800, color: "primary.main" }}>
           Welcome back, {user?.name?.split(" ")[0] || "User"}!
         </Typography>
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body2" color="text.secondary">
           Ready to accelerate your career? Select a module below.
         </Typography>
       </Box>
 
-      <Grid container spacing={3} justifyContent="center" alignItems="stretch">
+      <Grid container spacing={2} justifyContent="center" alignItems="stretch">
         {options.map((option) => {
           const isAllowed = !option.comingSoon && checkAccess(option.featureCode);
 
           return (
-            <Grid item key={option.title} xs={12} sm={6} md={4} sx={{ display: "flex" }}>
+            <Grid item key={option.title} xs={6} sm={4} md={3} sx={{ display: "flex" }}>
               <Card
                 elevation={0}
                 sx={{
@@ -106,15 +106,15 @@ export default function DashboardHomePage() {
                   height: "100%",
                   display: "flex",
                   flexDirection: "column",
-                  borderRadius: "20px",
+                  borderRadius: "16px",
                   border: "1px solid",
                   borderColor: theme.palette.mode === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)",
                   bgcolor: "background.paper",
-                  transition: "all 0.3s ease-in-out",
+                  transition: "all 0.2s ease-in-out",
                   opacity: isAllowed ? 1 : 0.75,
                   filter: isAllowed ? "none" : "grayscale(90%)",
                   "&:hover": {
-                    transform: "translateY(-8px)",
+                    transform: "translateY(-4px)",
                     filter: "none",
                     opacity: 1,
                     borderColor: isAllowed ? "primary.main" : "secondary.main",
@@ -126,32 +126,46 @@ export default function DashboardHomePage() {
                   href={option.comingSoon ? option.path : isAllowed ? option.path : "/dashboard/upgrade"}
                   sx={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-start" }}
                 >
-                  <CardContent sx={{ p: 4, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", flexGrow: 1 }}>
+                  <CardContent sx={{ p: 2, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", flexGrow: 1 }}>
                     <Box
                       sx={{
-                        mb: 2,
-                        p: 2,
+                        mb: 1,
+                        p: 1.25,
                         borderRadius: "50%",
                         bgcolor: isAllowed ? (theme.palette.mode === "dark" ? "primary.dark" : "primary.light") : "grey.300",
                         color: "white",
                       }}
                     >
-                      {isAllowed ? option.icon : option.comingSoon ? <ConstructionIcon fontSize="large" /> : <LockIcon fontSize="large" />}
+                      {isAllowed
+                        ? React.cloneElement(option.icon, { sx: { fontSize: 24 } })
+                        : option.comingSoon
+                          ? <ConstructionIcon fontSize="small" />
+                          : <LockIcon fontSize="small" />}
                     </Box>
 
-                    <Typography gutterBottom variant="h6" component="div" sx={{ fontWeight: "bold", color: "text.primary" }}>
+                    <Typography gutterBottom variant="body2" component="div" sx={{ fontWeight: "bold", color: "text.primary" }}>
                       {option.title}
                     </Typography>
 
-                    <Typography variant="body2" color="text.secondary" mb={2}>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      mb={1}
+                      sx={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
                       {option.description}
                     </Typography>
 
                     {option.comingSoon ? (
-                      <Chip label="Coming Soon" size="small" color="default" variant="filled" sx={{ mt: "auto", fontWeight: "bold" }} />
+                      <Chip label="Coming Soon" size="small" color="default" variant="filled" sx={{ mt: "auto", fontWeight: "bold", height: 20, fontSize: "0.65rem" }} />
                     ) : (
                       !isAllowed && (
-                        <Chip label="Upgrade Plan" size="small" color="secondary" variant="filled" sx={{ mt: "auto", fontWeight: "bold" }} />
+                        <Chip label="Upgrade Plan" size="small" color="secondary" variant="filled" sx={{ mt: "auto", fontWeight: "bold", height: 20, fontSize: "0.65rem" }} />
                       )
                     )}
                   </CardContent>
