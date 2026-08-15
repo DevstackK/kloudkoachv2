@@ -65,7 +65,12 @@ export async function POST(req: NextRequest) {
           required: ["caseTitle", "caseText"],
         },
         model: CLAUDE_MODEL_SMART,
-        maxTokens: 800,
+        // 800 was too tight - a full case script (demographics, HPI, PMH/
+        // FMH/SH, exam findings, diagnosis line) plus the title routinely
+        // hit that cap mid-generation, producing a truncated tool call
+        // with caseText silently missing (confirmed live via RehearseMD,
+        // which shares this exact code path).
+        maxTokens: 2000,
         route: "virtual-patient.generate-case",
         userId,
       });
@@ -74,6 +79,10 @@ export async function POST(req: NextRequest) {
     } catch {
       return withCors(req, NextResponse.json({ success: false, message: "Could not generate a case." }, { status: 502 }));
     }
+  }
+
+  if (!finalCaseText || !finalTitle) {
+    return withCors(req, NextResponse.json({ success: false, message: "Could not generate a complete case. Please try again." }, { status: 502 }));
   }
 
   const session = await prisma.coachingSession.create({
