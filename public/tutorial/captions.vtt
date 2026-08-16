@@ -5,7 +5,7 @@ STYLE
   background-color: rgba(24, 10, 36, 0.78);
   color: #ffffff;
   font-family: "Segoe UI", Roboto, Arial, sans-serif;
-  font-size: 1.3em;
+  font-size: 0.85em;
   line-height: 1.4;
 }
 
@@ -15,11 +15,11 @@ Welcome to Kloud Koach, your AI-powered interview coach.
 
 2
 00:00:04.200 --> 00:00:08.290
-Let's take a quick tour — first, create your free account in just a few seconds.
+Let's take a quick tour. First, create your free account in just a few seconds.
 
 3
 00:00:09.500 --> 00:00:13.700
-This is your dashboard — home base for every coaching tool Kloud Koach offers.
+This is your dashboard, home base for every coaching tool Kloud Koach offers.
 
 4
 00:00:13.700 --> 00:00:18.090
@@ -35,7 +35,7 @@ and quietly suggests answers in real time.
 
 7
 00:00:27.000 --> 00:00:30.350
-It's meant to help you think clearly — not to answer for you.
+It's meant to help you think clearly, not to answer for you.
 
 8
 00:00:31.600 --> 00:00:36.000

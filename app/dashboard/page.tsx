@@ -9,7 +9,6 @@ import HeadsetMicIcon from "@mui/icons-material/HeadsetMic";
 import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import SchoolIcon from "@mui/icons-material/School";
 import GraphicEqIcon from "@mui/icons-material/GraphicEq";
-import MedicalServicesIcon from "@mui/icons-material/MedicalServices";
 import GroupsIcon from "@mui/icons-material/Groups";
 import LockIcon from "@mui/icons-material/Lock";
 import ConstructionIcon from "@mui/icons-material/Construction";
@@ -61,13 +60,6 @@ const options = [
     // production API key - flip off once SPEECHACE_API_KEY is set
     // (matches the COMING_SOON flag in the page itself).
     comingSoon: true,
-  },
-  {
-    title: "Virtual Patient",
-    description: "Practice diagnostic interviewing with an AI standardized patient - ask questions, then diagnose.",
-    path: "/dashboard/virtual-patient",
-    featureCode: "MOCK_INTERVIEW",
-    icon: <MedicalServicesIcon sx={{ fontSize: 40 }} />,
   },
   {
     title: "Meeting Helper",
