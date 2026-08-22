@@ -21,6 +21,14 @@
 # vercel
 .vercel
 
+# local docker port/config overrides (see docker-compose docs)
+docker-compose.override.yml
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
