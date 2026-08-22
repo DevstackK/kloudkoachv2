@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { rateLimit, getClientIp } from "@/lib/rateLimit";
+import { sendEmail } from "@/lib/email";
 
 const schema = z.object({ email: z.string().email() });
 
@@ -29,9 +30,20 @@ export async function POST(req: NextRequest) {
       data: { resetToken, resetTokenExpiresAt },
     });
 
-    // TODO(phase 2+): send this via a transactional email provider (e.g. Resend).
-    // Logged for local development until an email provider is wired up.
-    console.log(`[dev] Password reset link for ${user.email}: /reset-password?token=${resetToken}`);
+    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${resetToken}`;
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your Kloud Koach password",
+        text: `Hi ${user.name},\n\nSomeone requested a password reset for your account. Reset it here (expires in 30 minutes):\n${resetUrl}\n\nIf this wasn't you, you can ignore this email - your password won't change.`,
+        html: `<p>Hi ${user.name},</p><p>Someone requested a password reset for your account. Reset it here (expires in 30 minutes):</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>If this wasn't you, you can ignore this email - your password won't change.</p>`,
+      });
+    } catch (err) {
+      // Same reasoning as registration's OTP send: don't let a flaky email
+      // provider turn into a 500 here, since the response is always the
+      // same generic message regardless of outcome (see below).
+      console.error("Failed to send password reset email:", err);
+    }
   }
 
   return NextResponse.json({ success: true, message: "If an account exists, a reset link has been sent." });

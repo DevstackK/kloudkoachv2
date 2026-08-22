@@ -45,6 +45,13 @@ async function verifyEmailInUi(page: Page, email: string) {
   await expect(page).toHaveURL(/\/dashboard/);
 }
 
+/** Reads the token the app just emailed for a forgot-password request. */
+async function getResetTokenFor(email: string): Promise<string> {
+  const user = await prisma.user.findUniqueOrThrow({ where: { email }, select: { resetToken: true } });
+  if (!user.resetToken) throw new Error(`No pending reset token for ${email}`);
+  return user.resetToken;
+}
+
 test.describe("auth", () => {
   test("redirects an unauthenticated visitor from /dashboard to /login", async ({ page }) => {
     await page.goto("/dashboard");
@@ -164,5 +171,46 @@ test.describe("auth", () => {
 
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/login/);
+  });
+
+  test("resets password via the emailed link and can log in with the new password", async ({ page, request }) => {
+    const email = uniqueEmail("reset");
+    const oldPassword = PASSWORD;
+    const newPassword = "a-totally-different-passphrase";
+
+    const registerRes = await request.post("/api/auth/register", {
+      data: { name: "E2E Test User", email, password: oldPassword },
+    });
+    expect(registerRes.ok()).toBeTruthy();
+
+    const forgotRes = await request.post("/api/auth/forgot-password", { data: { email } });
+    expect(forgotRes.ok()).toBeTruthy();
+    const token = await getResetTokenFor(email);
+
+    await page.goto(`/reset-password?token=${token}`);
+    // Not label-based like fillUntilReady's other callers: MUI's outlined
+    // variant duplicates the label text into a hidden fieldset legend,
+    // which browsers fold into the computed accessible name - "New
+    // Password" (exact) matches nothing, and non-exact matches both fields
+    // ambiguously. Both inputs are type="password" in a fixed DOM order,
+    // which is stable regardless of that quirk.
+    const passwordInputs = page.locator('input[type="password"]');
+    const button = page.getByRole("button", { name: "Reset Password" });
+    await expect(async () => {
+      await passwordInputs.nth(0).fill(newPassword);
+      await passwordInputs.nth(1).fill(newPassword);
+      await expect(passwordInputs.nth(0)).toHaveValue(newPassword);
+      await expect(passwordInputs.nth(1)).toHaveValue(newPassword);
+    }).toPass({ timeout: 15_000 });
+    await button.click();
+
+    await expect(page.getByText("Password updated.")).toBeVisible();
+    await expect(page).toHaveURL(/\/login/, { timeout: 5_000 });
+
+    const newLoginRes = await request.post("/api/auth/login", { data: { email, password: newPassword } });
+    expect(newLoginRes.ok()).toBeTruthy();
+
+    const oldLoginRes = await request.post("/api/auth/login", { data: { email, password: oldPassword } });
+    expect(oldLoginRes.ok()).toBeFalsy();
   });
 });
