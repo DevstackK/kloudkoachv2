@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/session";
 import { generateStructured } from "@/lib/anthropic";
 import { rateLimit } from "@/lib/rateLimit";
+import { checkFeatureLimit } from "@/lib/planLimits";
 
 const setupSchema = z.object({
   subject: z.string().min(1).max(200),
@@ -48,6 +49,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid input" }, { status: 400 });
   }
   const { subject, description, courseMaterial } = parsed.data;
+
+  const featureCheck = await checkFeatureLimit(userId, "EXAM_PREP");
+  if (!featureCheck.allowed) {
+    return NextResponse.json({ success: false, message: featureCheck.message }, { status: 403 });
+  }
 
   let examData: { examTitle: string; questions: unknown[] };
   try {

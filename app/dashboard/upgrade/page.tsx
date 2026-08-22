@@ -14,6 +14,7 @@ type PlanFeature = {
 type Plan = {
   subscriptionPlanId: string;
   name: string;
+  description: string;
   price: number;
   isPopular: boolean;
   isActive: boolean;
@@ -182,7 +183,7 @@ export default function UpgradePlanPage() {
         {plans.map((plan) => {
           const isCurrent = subscription?.planId === plan.subscriptionPlanId || (!subscription && plan.price === 0);
           return (
-            <Grid item xs={12} sm={6} md={4} key={plan.subscriptionPlanId}>
+            <Grid item xs={12} sm={6} md={3} key={plan.subscriptionPlanId}>
               <Paper
                 sx={{
                   p: 4,
@@ -206,6 +207,9 @@ export default function UpgradePlanPage() {
                   <Typography variant="body1" component="span" color="text.secondary">
                     /mo
                   </Typography>
+                </Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  {plan.description}
                 </Typography>
                 <List sx={{ flexGrow: 1 }}>
                   {plan.features

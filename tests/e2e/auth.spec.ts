@@ -45,7 +45,7 @@ test.describe("auth", () => {
     await button.click();
 
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.locator('a[href="/dashboard/interview"]')).toBeVisible();
+    await expect(page.getByRole('banner').locator('a[href="/dashboard/interview"]')).toBeVisible();
   });
 
   test("rejects login with the wrong password and stays on /login", async ({ page, request }) => {
@@ -89,7 +89,7 @@ test.describe("auth", () => {
     await button.click();
 
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.locator('a[href="/dashboard/interview"]')).toBeVisible();
+    await expect(page.getByRole('banner').locator('a[href="/dashboard/interview"]')).toBeVisible();
   });
 
   test("logs out and can no longer reach the dashboard", async ({ page, request }) => {

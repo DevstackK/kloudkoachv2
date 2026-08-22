@@ -2,7 +2,20 @@ import { prisma } from "@/lib/prisma";
 
 const PERIOD_MS = 30 * 24 * 60 * 60 * 1000; // rolling 30-day window, matches the "/mo" unit shown in plan features
 
-export type FeatureCode = "MOCK_INTERVIEW" | "LIVE_INTERVIEW";
+export type FeatureCode = "AI_MINUTES" | "RESUME_BUILDER" | "EXAM_PREP";
+
+// Every spoken/live coaching feature shares one minute pool - they're all
+// the same "AI listens and responds in real time" shape, just wearing
+// different UI. Exam Prep is a single generation call (no live duration),
+// so it stays its own count-based quota rather than joining this pool.
+const AI_MINUTE_SESSION_TYPES = [
+  "live_interview",
+  "mock_interview",
+  "ai_interview",
+  "pronunciation_practice",
+  "virtual_patient",
+  "meeting_helper",
+] as const;
 
 export type FeatureLimitCheck = {
   allowed: boolean;
@@ -13,32 +26,25 @@ export type FeatureLimitCheck = {
 };
 
 async function getUsed(userId: string, featureCode: FeatureCode, periodStart: Date): Promise<number> {
-  if (featureCode === "LIVE_INTERVIEW") {
-    // TimeBased - measured in minutes actually spent in completed live
-    // sessions. meeting_helper shares this quota with live_interview.
+  if (featureCode === "AI_MINUTES") {
     const agg = await prisma.coachingSession.aggregate({
-      where: { userId, type: { in: ["live_interview", "meeting_helper"] }, status: "completed", startedAt: { gte: periodStart } },
+      where: { userId, type: { in: [...AI_MINUTE_SESSION_TYPES] }, status: "completed", startedAt: { gte: periodStart } },
       _sum: { durationMinutes: true },
     });
     return agg._sum.durationMinutes ?? 0;
   }
 
-  // MOCK_INTERVIEW - CountBased, one unit per session started (matches the
-  // "sessions/mo" unit regardless of whether the user finished it).
-  // ai_interview, pronunciation_practice, and virtual_patient share this
-  // quota with mock_interview - see the comment in
-  // /api/coach/session/route.ts.
-  return prisma.coachingSession.count({
-    where: {
-      userId,
-      type: { in: ["mock_interview", "ai_interview", "pronunciation_practice", "virtual_patient"] },
-      startedAt: { gte: periodStart },
-    },
-  });
+  if (featureCode === "EXAM_PREP") {
+    return prisma.coachingSession.count({ where: { userId, type: "exam_prep", startedAt: { gte: periodStart } } });
+  }
+
+  // RESUME_BUILDER - resumes are stored, not consumed monthly, so this is a
+  // running total rather than a rolling-window count (periodStart unused).
+  return prisma.resume.count({ where: { userId } });
 }
 
 /**
- * Checks a user's current plan limit for a coaching-session feature.
+ * Checks a user's current plan limit for a metered feature.
  * Free-tier users get an active Subscription at registration, so a missing
  * subscription/feature row means the feature isn't on any plan they've ever
  * had - treated as not allowed rather than unlimited.

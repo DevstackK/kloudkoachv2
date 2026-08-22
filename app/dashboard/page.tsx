@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import NextLink from "next/link";
-import { Container, Grid, Typography, Card, CardActionArea, CardContent, Box, useTheme, Chip } from "@mui/material";
+import { Container, Grid, Typography, Card, CardActionArea, CardContent, Box, useTheme, Chip, Paper, Stack, Button } from "@mui/material";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import ModelTrainingIcon from "@mui/icons-material/ModelTraining";
 import HeadsetMicIcon from "@mui/icons-material/HeadsetMic";
@@ -13,27 +13,28 @@ import GroupsIcon from "@mui/icons-material/Groups";
 import LockIcon from "@mui/icons-material/Lock";
 import ConstructionIcon from "@mui/icons-material/Construction";
 import { useAuth } from "@/lib/AuthProvider";
+import UsageBar from "@/components/UsageBar";
 
 const options = [
   {
     title: "Live Interview Co-Pilot",
     description: "Start a real-time interview session with our AI.",
     path: "/dashboard/interview",
-    featureCode: "LIVE_INTERVIEW",
+    featureCode: "AI_MINUTES",
     icon: <RecordVoiceOverIcon sx={{ fontSize: 40 }} />,
   },
   {
     title: "Interview Preparation",
     description: "Prepare for your interview with targeted practice.",
     path: "/dashboard/interview-preparation",
-    featureCode: "MOCK_INTERVIEW",
+    featureCode: "AI_MINUTES",
     icon: <ModelTrainingIcon sx={{ fontSize: 40 }} />,
   },
   {
     title: "AI Interviewer",
     description: "A simulated interviewer asks you real questions out loud - you answer by speaking.",
     path: "/dashboard/ai-interviewer",
-    featureCode: "MOCK_INTERVIEW",
+    featureCode: "AI_MINUTES",
     icon: <HeadsetMicIcon sx={{ fontSize: 40 }} />,
   },
   {
@@ -54,7 +55,7 @@ const options = [
     title: "Pronunciation Practice",
     description: "Read a sentence aloud and get instant word-by-word pronunciation scoring.",
     path: "/dashboard/pronunciation",
-    featureCode: "MOCK_INTERVIEW",
+    featureCode: "AI_MINUTES",
     icon: <GraphicEqIcon sx={{ fontSize: 40 }} />,
     // Built and tested against the Speechace API, just waiting on the
     // production API key - flip off once SPEECHACE_API_KEY is set
@@ -65,14 +66,15 @@ const options = [
     title: "Meeting Helper",
     description: "Join a work meeting and get quiet, text-only suggestions on what to say next.",
     path: "/dashboard/meeting-helper",
-    featureCode: "LIVE_INTERVIEW",
+    featureCode: "AI_MINUTES",
     icon: <GroupsIcon sx={{ fontSize: 40 }} />,
   },
 ];
 
 export default function DashboardHomePage() {
   const theme = useTheme();
-  const { user, checkAccess } = useAuth();
+  const { user, usage, checkAccess } = useAuth();
+  const activeUsage = usage?.features.filter((f) => f.isActive) ?? [];
 
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
@@ -84,6 +86,36 @@ export default function DashboardHomePage() {
           Ready to accelerate your career? Select a module below.
         </Typography>
       </Box>
+
+      {activeUsage.length > 0 && (
+        <Paper
+          elevation={0}
+          sx={{
+            p: { xs: 2, sm: 2.5 },
+            mb: 3,
+            borderRadius: "16px",
+            border: "1px solid",
+            borderColor: theme.palette.mode === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)",
+            bgcolor: "background.paper",
+          }}
+        >
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+            <Typography variant="subtitle2" fontWeight={700} color="text.secondary">
+              {usage?.planName ?? "Free"} plan usage this month
+            </Typography>
+            <Button component={NextLink} href="/dashboard/upgrade" size="small" sx={{ fontWeight: 700 }}>
+              Upgrade
+            </Button>
+          </Box>
+          <Stack spacing={1.75} direction={{ xs: "column", sm: "row" }} divider={<Box sx={{ display: { xs: "none", sm: "block" }, width: "1px", bgcolor: "divider" }} />}>
+            {activeUsage.map((f) => (
+              <Box key={f.featureCode} sx={{ flex: 1, minWidth: 0 }}>
+                <UsageBar feature={f} />
+              </Box>
+            ))}
+          </Stack>
+        </Paper>
+      )}
 
       <Grid container spacing={2} justifyContent="center" alignItems="stretch">
         {options.map((option) => {

@@ -5,15 +5,13 @@ import { getCurrentUserId } from "@/lib/session";
 import { withCors, corsPreflight } from "@/lib/cors";
 import { checkFeatureLimit, type FeatureCode } from "@/lib/planLimits";
 
-// ai_interview shares the MOCK_INTERVIEW quota - both are practice
-// sessions, not worth a separate PlanFeature row for now. meeting_helper
-// shares LIVE_INTERVIEW's time-based quota - same "listens to a real live
-// audio source and suggests responses" shape as live_interview.
+// All four session types share one AI_MINUTES time pool - same "AI listens
+// and responds in real time" shape, just different UI. See lib/planLimits.ts.
 const featureCodeForType: Record<"live_interview" | "mock_interview" | "ai_interview" | "meeting_helper", FeatureCode> = {
-  live_interview: "LIVE_INTERVIEW",
-  mock_interview: "MOCK_INTERVIEW",
-  ai_interview: "MOCK_INTERVIEW",
-  meeting_helper: "LIVE_INTERVIEW",
+  live_interview: "AI_MINUTES",
+  mock_interview: "AI_MINUTES",
+  ai_interview: "AI_MINUTES",
+  meeting_helper: "AI_MINUTES",
 };
 
 const schema = z.object({

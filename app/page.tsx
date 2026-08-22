@@ -314,7 +314,7 @@ export default function LandingPage() {
                 .map((plan) => {
                   const isFree = plan.price === 0;
                   return (
-                    <Grid item xs={12} sm={6} md={4} key={plan.subscriptionPlanId}>
+                    <Grid item xs={12} sm={6} md={3} key={plan.subscriptionPlanId}>
                       <Paper
                         className={styles.planCard}
                         sx={{

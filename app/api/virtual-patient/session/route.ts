@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return withCors(req, NextResponse.json({ success: false, message: "Invalid input" }, { status: 400 }));
   const { caseText, caseLabel, specialty, difficulty } = parsed.data;
 
-  const featureCheck = await checkFeatureLimit(userId, "MOCK_INTERVIEW");
+  const featureCheck = await checkFeatureLimit(userId, "AI_MINUTES");
   if (!featureCheck.allowed) {
     return withCors(req, NextResponse.json({ success: false, message: featureCheck.message }, { status: 403 }));
   }

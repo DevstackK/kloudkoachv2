@@ -59,6 +59,7 @@ model User {
 model Plan {
   id            String   @id @default(cuid())
   name          String
+  description   String?
   priceMonthly  Int      // cents
   stripePriceId String?
   priority      Int      @default(0) // higher = shown as "Popular"

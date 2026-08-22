@@ -17,7 +17,7 @@ export async function GET() {
       name: plan.name,
       price: plan.priceMonthly / 100,
       billingCycle: "monthly",
-      description: `${plan.name} plan`,
+      description: plan.description ?? `${plan.name} plan`,
       priority: plan.priority,
       isPopular: plan.priority === topPriority && topPriority > 0,
       isActive: plan.isActive,

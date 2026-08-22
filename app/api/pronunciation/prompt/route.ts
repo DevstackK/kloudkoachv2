@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       return withCors(req, NextResponse.json({ success: false, message: "Session not found" }, { status: 404 }));
     }
   } else {
-    const featureCheck = await checkFeatureLimit(userId, "MOCK_INTERVIEW");
+    const featureCheck = await checkFeatureLimit(userId, "AI_MINUTES");
     if (!featureCheck.allowed) {
       return withCors(req, NextResponse.json({ success: false, message: featureCheck.message }, { status: 403 }));
     }
