@@ -40,6 +40,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return withCors(req, NextResponse.json({ success: false, message: "Session not found" }, { status: 404 }));
   }
 
+  // Already finalized - most commonly by enforceSessionCutoff() ending the
+  // session mid-turn once its time ran out. Re-running this below would
+  // recompute endedAt against "now", double-counting everything since the
+  // cutoff as extra duration. Treat a second stop as a success no-op.
+  if (session.status !== "in_progress") {
+    return withCors(req, NextResponse.json({ success: true }));
+  }
+
   const endedAt = new Date();
   const durationMinutes = Math.max(1, Math.round((endedAt.getTime() - session.startedAt.getTime()) / 60000));
 

@@ -6,6 +6,7 @@ import { generateStructured, CLAUDE_MODEL_FAST } from "@/lib/anthropic";
 import { rateLimit } from "@/lib/rateLimit";
 import { checkFeatureLimit } from "@/lib/planLimits";
 import { withCors, corsPreflight } from "@/lib/cors";
+import { enforceSessionCutoff } from "@/lib/sessionCutoff";
 
 export async function OPTIONS(req: NextRequest) {
   return corsPreflight(req);
@@ -50,6 +51,10 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.coachingSession.findUnique({ where: { id: sessionId } });
     if (!existing || existing.userId !== userId || existing.type !== "pronunciation_practice") {
       return withCors(req, NextResponse.json({ success: false, message: "Session not found" }, { status: 404 }));
+    }
+    const cutoff = await enforceSessionCutoff(existing);
+    if (cutoff.cutoff) {
+      return withCors(req, NextResponse.json({ success: false, message: cutoff.message, sessionEnded: true }, { status: 403 }));
     }
   } else {
     const featureCheck = await checkFeatureLimit(userId, "AI_MINUTES");

@@ -107,7 +107,11 @@ export function useVirtualPatient() {
           body: JSON.stringify({ sessionId: currentSessionId, question }),
         });
         const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.message || "The patient didn't respond.");
+        if (!res.ok || !json.success) {
+          const err = new Error(json.message || "The patient didn't respond.") as Error & { sessionEnded?: boolean };
+          err.sessionEnded = !!json.sessionEnded;
+          throw err;
+        }
         if (stoppedRef.current) return;
 
         setTurns((prev) => {
@@ -119,7 +123,15 @@ export function useVirtualPatient() {
       } catch (err) {
         if (stoppedRef.current) return;
         setError(err instanceof Error ? err.message : "The patient didn't respond.");
-        setStatus("listening");
+        if (err instanceof Error && (err as Error & { sessionEnded?: boolean }).sessionEnded) {
+          // The session is already finalized server-side (time cap or
+          // monthly balance) - tear down the mic/WS instead of leaving it
+          // "listening" and firing more turns at a session that's over.
+          setTurns((prev) => prev.slice(0, -1));
+          stopRef.current();
+        } else {
+          setStatus("listening");
+        }
       }
     },
     [speak]

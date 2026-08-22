@@ -69,7 +69,21 @@ export function useCoachSession() {
         });
 
         if (!res.ok || !res.body) {
-          throw new Error("Failed to get a response.");
+          // The session-ended case (hit the per-session time cap or the
+          // plan's monthly balance) sends a JSON body with the real reason -
+          // everything else is a transient failure worth a generic message.
+          let message = "Failed to get a response.";
+          let sessionEnded = false;
+          try {
+            const errJson = await res.json();
+            if (errJson?.message) message = errJson.message;
+            sessionEnded = !!errJson?.sessionEnded;
+          } catch {
+            // non-JSON body (e.g. the stream itself failed) - keep the generic message
+          }
+          const err = new Error(message) as Error & { sessionEnded?: boolean };
+          err.sessionEnded = sessionEnded;
+          throw err;
         }
 
         const reader = res.body.getReader();
@@ -97,15 +111,27 @@ export function useCoachSession() {
         lastFailedQuestionRef.current = null;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to get a response.");
-        lastFailedQuestionRef.current = question;
-        // Without this, the turn's spinner (isStreaming: true, set above)
-        // never clears - the exact "froze, no response" symptom.
-        setTurns((prev) => {
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (last) next[next.length - 1] = { ...last, isStreaming: false, failed: true };
-          return next;
-        });
+        const sessionEnded = err instanceof Error && (err as Error & { sessionEnded?: boolean }).sessionEnded;
+
+        if (sessionEnded) {
+          // The session is already finalized server-side - retrying would
+          // just fail again, so drop the unanswered placeholder turn instead
+          // of offering a Retry button, and tear down the mic/WebSocket so
+          // it can't keep firing new turns at a session that no longer exists.
+          lastFailedQuestionRef.current = null;
+          setTurns((prev) => prev.slice(0, -1));
+          stopRef.current();
+        } else {
+          lastFailedQuestionRef.current = question;
+          // Without this, the turn's spinner (isStreaming: true, set above)
+          // never clears - the exact "froze, no response" symptom.
+          setTurns((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last) next[next.length - 1] = { ...last, isStreaming: false, failed: true };
+            return next;
+          });
+        }
       } finally {
         setStatus((prev) => (prev === "thinking" ? "listening" : prev));
       }

@@ -6,6 +6,7 @@ import { anthropic, cachedSystem, CLAUDE_MODEL_FAST } from "@/lib/anthropic";
 import { rateLimit } from "@/lib/rateLimit";
 import { logAiCall } from "@/lib/aiLogger";
 import { corsHeaders, corsPreflight } from "@/lib/cors";
+import { enforceSessionCutoff } from "@/lib/sessionCutoff";
 
 export async function OPTIONS(req: NextRequest) {
   return corsPreflight(req);
@@ -66,6 +67,14 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ success: false, message: "Session not found" }), { status: 404, headers: corsHeaders(req) });
   }
   const userId = session.userId;
+
+  const cutoff = await enforceSessionCutoff(session);
+  if (cutoff.cutoff) {
+    return new Response(JSON.stringify({ success: false, message: cutoff.message, sessionEnded: true }), {
+      status: 403,
+      headers: corsHeaders(req),
+    });
+  }
 
   const [user, activeResume, priorTurns] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),

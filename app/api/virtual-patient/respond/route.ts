@@ -6,6 +6,7 @@ import { anthropic, cachedSystem, CLAUDE_MODEL_FAST } from "@/lib/anthropic";
 import { rateLimit } from "@/lib/rateLimit";
 import { logAiCall } from "@/lib/aiLogger";
 import { withCors, corsPreflight } from "@/lib/cors";
+import { enforceSessionCutoff } from "@/lib/sessionCutoff";
 
 export async function OPTIONS(req: NextRequest) {
   return corsPreflight(req);
@@ -38,6 +39,11 @@ export async function POST(req: NextRequest) {
   const session = await prisma.coachingSession.findUnique({ where: { id: sessionId } });
   if (!session || session.userId !== userId || session.type !== "virtual_patient") {
     return withCors(req, NextResponse.json({ success: false, message: "Session not found" }, { status: 404 }));
+  }
+
+  const cutoff = await enforceSessionCutoff(session);
+  if (cutoff.cutoff) {
+    return withCors(req, NextResponse.json({ success: false, message: cutoff.message, sessionEnded: true }, { status: 403 }));
   }
 
   const priorTurns = await prisma.interactionRecord.findMany({
