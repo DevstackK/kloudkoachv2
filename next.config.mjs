@@ -31,9 +31,14 @@ const nextConfig = {
             // inline bootstrap scripts (no nonce plumbing yet) - this still
             // blocks loading/exfiltrating to any non-self script origin,
             // which is the more common real-world attack path.
+            // 'unsafe-eval' is added in dev only: next dev's HMR/Fast
+            // Refresh bundle evals module code for fast source maps, and
+            // without it the CSP silently breaks hydration - every form on
+            // the site goes dead (inputs accept typing but React never
+            // sees it) with no visible error except a CSP console warning.
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline'",
+              `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV !== "production" ? " 'unsafe-eval'" : ""}`,
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
               // AI Interviewer plays ElevenLabs TTS audio via a blob: URL
