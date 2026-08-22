@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { signAccessToken, signRefreshToken, ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME, accessCookieOptions, refreshCookieOptions } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
 import { rateLimit, getClientIp } from "@/lib/rateLimit";
+import { issueOtp } from "@/lib/otp";
 
 const registerSchema = z.object({
   name: z.string().min(1).max(120),
@@ -38,6 +39,14 @@ export async function POST(req: NextRequest) {
     await prisma.subscription.create({
       data: { userId: user.id, planId: freePlan.id, status: "active" },
     });
+  }
+
+  try {
+    await issueOtp(user.id, user.email, user.name);
+  } catch (err) {
+    // Don't fail registration over a flaky email send - the verify-email
+    // page has a resend button for exactly this case.
+    console.error("Failed to send verification email:", err);
   }
 
   const accessToken = await signAccessToken({ sub: user.id, email: user.email });

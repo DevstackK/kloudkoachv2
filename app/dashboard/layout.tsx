@@ -13,12 +13,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
 
   React.useEffect(() => {
-    if (!loading && !user) {
+    if (loading) return;
+    if (!user) {
       router.replace("/login");
+    } else if (!user.emailVerified) {
+      router.replace("/verify-email");
     }
   }, [loading, user, router]);
 
-  if (loading || !user) {
+  if (loading || !user || !user.emailVerified) {
     return (
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
         <CircularProgress />

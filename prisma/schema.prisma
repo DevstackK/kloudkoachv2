@@ -46,6 +46,15 @@ model User {
   stripeCustomerId String?  @unique
   resetToken      String?
   resetTokenExpiresAt DateTime?
+  // Email OTP verification at signup. Stored in plaintext (not hashed, unlike
+  // passwordHash) since it's a 6-digit code with a short TTL and a capped
+  // attempt count below - the threat model is brute force within the
+  // window, which otpAttempts stops, not credential reuse, which is what
+  // hashing protects against.
+  emailVerified   Boolean   @default(false)
+  otpCode         String?
+  otpExpiresAt    DateTime?
+  otpAttempts     Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

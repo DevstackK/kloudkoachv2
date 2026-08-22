@@ -1,4 +1,10 @@
+import "dotenv/config";
 import { test, expect, type Page } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
 function uniqueEmail(label: string) {
   return `e2e-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
@@ -23,13 +29,29 @@ async function fillUntilReady(page: Page, fields: Array<{ label: string; value: 
   return button;
 }
 
+/** Reads the OTP the app just emailed - registration/login always lands on /verify-email first. */
+async function getOtpFor(email: string): Promise<string> {
+  const user = await prisma.user.findUniqueOrThrow({ where: { email }, select: { otpCode: true } });
+  if (!user.otpCode) throw new Error(`No pending OTP for ${email}`);
+  return user.otpCode;
+}
+
+/** Completes the post-register/login OTP gate via the UI, landing on /dashboard. */
+async function verifyEmailInUi(page: Page, email: string) {
+  await expect(page).toHaveURL(/\/verify-email/);
+  const code = await getOtpFor(email);
+  const button = await fillUntilReady(page, [{ label: "Verification code", value: code }], "Verify");
+  await button.click();
+  await expect(page).toHaveURL(/\/dashboard/);
+}
+
 test.describe("auth", () => {
   test("redirects an unauthenticated visitor from /dashboard to /login", async ({ page }) => {
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test("registers a new user and reaches the dashboard", async ({ page }) => {
+  test("registers a new user, verifies email, and reaches the dashboard", async ({ page }) => {
     const email = uniqueEmail("register");
 
     await page.goto("/register");
@@ -44,8 +66,34 @@ test.describe("auth", () => {
     );
     await button.click();
 
-    await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByRole('banner').locator('a[href="/dashboard/interview"]')).toBeVisible();
+    await verifyEmailInUi(page, email);
+    await expect(page.getByRole("banner").locator('a[href="/dashboard/interview"]')).toBeVisible();
+  });
+
+  test("rejects an incorrect verification code and stays on /verify-email", async ({ page, request }) => {
+    const email = uniqueEmail("badotp");
+    const registerRes = await request.post("/api/auth/register", {
+      data: { name: "E2E Test User", email, password: PASSWORD },
+    });
+    expect(registerRes.ok()).toBeTruthy();
+
+    await page.goto("/login");
+    const loginButton = await fillUntilReady(
+      page,
+      [
+        { label: "Email Address", value: email },
+        { label: "Password", value: PASSWORD },
+      ],
+      "Sign In"
+    );
+    await loginButton.click();
+    await expect(page).toHaveURL(/\/verify-email/);
+
+    const verifyButton = await fillUntilReady(page, [{ label: "Verification code", value: "000000" }], "Verify");
+    await verifyButton.click();
+
+    await expect(page.getByText(/Incorrect code/)).toBeVisible();
+    await expect(page).toHaveURL(/\/verify-email/);
   });
 
   test("rejects login with the wrong password and stays on /login", async ({ page, request }) => {
@@ -70,7 +118,7 @@ test.describe("auth", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test("logs in an existing user and reaches the dashboard", async ({ page, request }) => {
+  test("logs in an existing user, verifies email, and reaches the dashboard", async ({ page, request }) => {
     const email = uniqueEmail("login");
     const registerRes = await request.post("/api/auth/register", {
       data: { name: "E2E Test User", email, password: PASSWORD },
@@ -88,8 +136,8 @@ test.describe("auth", () => {
     );
     await button.click();
 
-    await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByRole('banner').locator('a[href="/dashboard/interview"]')).toBeVisible();
+    await verifyEmailInUi(page, email);
+    await expect(page.getByRole("banner").locator('a[href="/dashboard/interview"]')).toBeVisible();
   });
 
   test("logs out and can no longer reach the dashboard", async ({ page, request }) => {
@@ -109,7 +157,7 @@ test.describe("auth", () => {
       "Sign In"
     );
     await button.click();
-    await expect(page).toHaveURL(/\/dashboard/);
+    await verifyEmailInUi(page, email);
 
     await page.getByRole("button", { name: "Account Settings" }).click();
     await page.getByRole("menuitem", { name: "Logout" }).click();

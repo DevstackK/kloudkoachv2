@@ -59,7 +59,7 @@ function RegisterForm() {
         }
       }
 
-      router.push("/dashboard");
+      router.push("/verify-email");
     } catch {
       setError("Registration error. Please try again.");
     } finally {
