@@ -28,7 +28,7 @@ const plans: SeedPlan[] = [
     name: "Free",
     priceMonthly: 0,
     priority: 0,
-    description: "Try every feature before you commit.",
+    description: "Try Live Interview and every other feature before you commit.",
     features: [
       { featureCode: "AI_MINUTES", displayName: "AI coaching minutes", limitValue: 15, unit: "minutes/mo", featureType: "TimeBased" },
       { featureCode: "RESUME_BUILDER", displayName: "Resume builder", limitValue: 1, unit: "resumes", featureType: "CountBased" },
@@ -39,7 +39,7 @@ const plans: SeedPlan[] = [
     name: "Starter",
     priceMonthly: 900,
     priority: 1,
-    description: "One interview loop, start to offer.",
+    description: "One Live Interview loop, start to offer.",
     features: [
       { featureCode: "AI_MINUTES", displayName: "AI coaching minutes", limitValue: 60, unit: "minutes/mo", featureType: "TimeBased" },
       { featureCode: "RESUME_BUILDER", displayName: "Resume builder", limitValue: 2, unit: "resumes", featureType: "CountBased" },
@@ -50,7 +50,7 @@ const plans: SeedPlan[] = [
     name: "Pro",
     priceMonthly: 2900,
     priority: 3,
-    description: "For an active search across multiple roles.",
+    description: "Live Interview coaching for an active search across multiple roles.",
     features: [
       { featureCode: "AI_MINUTES", displayName: "AI coaching minutes", limitValue: 300, unit: "minutes/mo", featureType: "TimeBased" },
       { featureCode: "RESUME_BUILDER", displayName: "Resume builder", limitValue: 10, unit: "resumes", featureType: "CountBased" },
@@ -61,7 +61,7 @@ const plans: SeedPlan[] = [
     name: "Pro+",
     priceMonthly: 7900,
     priority: 2,
-    description: "Heavy repeat use, coaches, and career switchers.",
+    description: "Heavy Live Interview repeat use, coaches, and career switchers.",
     features: [
       { featureCode: "AI_MINUTES", displayName: "AI coaching minutes", limitValue: 1000, unit: "minutes/mo", featureType: "TimeBased" },
       { featureCode: "RESUME_BUILDER", displayName: "Resume builder", limitValue: -1, unit: "resumes", featureType: "CountBased" },
