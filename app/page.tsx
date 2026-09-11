@@ -47,6 +47,14 @@ type Plan = {
   features: PlanFeature[];
 };
 
+type CreditPack = {
+  creditPackId: string;
+  name: string;
+  credits: number;
+  price: number;
+  pricePerCredit: number;
+};
+
 function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 }
@@ -59,6 +67,7 @@ export default function LandingPage() {
   const [plans, setPlans] = React.useState<Plan[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [creditPacks, setCreditPacks] = React.useState<CreditPack[]>([]);
 
   React.useEffect(() => {
     if (!authLoading && user) {
@@ -83,10 +92,24 @@ export default function LandingPage() {
         setLoading(false);
       }
     })();
+
+    (async () => {
+      try {
+        const res = await fetch("/api/credit-packs");
+        const json = await res.json();
+        if (json.success) setCreditPacks(json.data);
+      } catch (err) {
+        console.error("Error fetching credit packs:", err);
+      }
+    })();
   }, []);
 
   const handlePlanSelect = (plan: Plan) => {
     router.push(`/register?plan=${plan.subscriptionPlanId}`);
+  };
+
+  const handleBuyCredits = () => {
+    router.push("/register");
   };
 
   return (
@@ -381,6 +404,51 @@ export default function LandingPage() {
                   );
                 })}
             </Grid>
+          )}
+
+          {!loading && !error && creditPacks.length > 0 && (
+            <Box sx={{ mt: 10 }}>
+              <Typography variant="h4" align="center" gutterBottom sx={{ fontWeight: 700 }}>
+                Buy AI Coaching Credits
+              </Typography>
+              <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 6, maxWidth: 600, mx: "auto" }}>
+                1 credit = 1 hour of AI coaching. Credits never expire and top up your plan once its monthly minutes run out.
+              </Typography>
+
+              <Grid container spacing={4} justifyContent="center" alignItems="stretch">
+                {creditPacks.map((pack) => (
+                  <Grid item xs={12} sm={6} md={3} key={pack.creditPackId}>
+                    <Paper
+                      className={styles.planCard}
+                      sx={{ p: 4, borderRadius: "20px", height: "100%", display: "flex", flexDirection: "column", border: "1px solid", borderColor: "divider", bgcolor: "background.paper" }}
+                    >
+                      <Typography variant="h5" fontWeight="bold" gutterBottom>
+                        {pack.name}
+                      </Typography>
+
+                      <Typography variant="h3" fontWeight="bold" my={2}>
+                        ${pack.price}
+                      </Typography>
+
+                      <Typography variant="body2" color="text.secondary" gutterBottom sx={{ flexGrow: 1 }}>
+                        {pack.credits} credit{pack.credits === 1 ? "" : "s"} (${pack.pricePerCredit.toFixed(2)}/credit)
+                      </Typography>
+
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        fullWidth
+                        size="large"
+                        sx={{ mt: "auto", py: 1.5, borderRadius: "12px" }}
+                        onClick={handleBuyCredits}
+                      >
+                        Buy Credits
+                      </Button>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
           )}
         </Container>
       </Box>
