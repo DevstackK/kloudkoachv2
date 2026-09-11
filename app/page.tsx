@@ -134,9 +134,25 @@ export default function LandingPage() {
             AI-Coaching as a Service (ACaaS)
           </Typography>
 
-          <Typography variant="h6" sx={{ opacity: 0.9, mb: 5, maxWidth: "800px", mx: "auto", lineHeight: 1.6 }}>
+          <Typography variant="h6" sx={{ opacity: 0.9, mb: 2, maxWidth: "800px", mx: "auto", lineHeight: 1.6 }}>
             Kloud Koach brings a personal AI coach to your device instantly, digitally, and securely. We are
             revolutionizing how candidates prepare for their dream jobs with real-time feedback and live assistance.
+          </Typography>
+
+          <Typography
+            variant="body2"
+            sx={{ opacity: 0.7, mb: 5, fontWeight: 500 }}
+          >
+            A{" "}
+            <a
+              href="https://kloudstack.co.uk"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "inherit", textDecoration: "underline" }}
+            >
+              KloudStack
+            </a>{" "}
+            Product
           </Typography>
 
           <Button
@@ -359,7 +375,7 @@ export default function LandingPage() {
       <Box sx={{ bgcolor: "#1a1a1a", color: "white", py: 6, mt: "auto" }}>
         <Container maxWidth="lg" sx={{ textAlign: "center" }}>
           <Typography variant="body2" sx={{ opacity: 0.7 }}>
-            <a href="https://kloudstack.com" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none", fontWeight: "bold" }}>
+            <a href="https://kloudstack.co.uk" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none", fontWeight: "bold" }}>
               © {new Date().getFullYear()} KloudStack Kloud Koach. All rights reserved.
             </a>
           </Typography>
