@@ -1,8 +1,8 @@
 /**
- * Syncs local Plan rows to Stripe Products/Prices and stores the resulting
- * stripePriceId back on each Plan. Safe to re-run - skips plans that already
- * have a stripePriceId, and skips $0 plans entirely (no Stripe object needed
- * for a free tier since checkout is never invoked for it).
+ * Syncs local Plan and CreditPack rows to Stripe Products/Prices and stores
+ * the resulting stripePriceId back on each row. Safe to re-run - skips rows
+ * that already have a stripePriceId, and skips $0 plans entirely (no Stripe
+ * object needed for a free tier since checkout is never invoked for it).
  *
  * Usage: npm run stripe:sync   (requires STRIPE_SECRET_KEY in .env)
  */
@@ -47,6 +47,31 @@ async function main() {
 
     await prisma.plan.update({ where: { id: plan.id }, data: { stripePriceId: price.id } });
     console.log(`Synced "${plan.name}" -> ${price.id}`);
+  }
+
+  const creditPacks = await prisma.creditPack.findMany({ where: { isActive: true } });
+
+  for (const pack of creditPacks) {
+    if (pack.stripePriceId) {
+      console.log(`Skipping "${pack.name}" (already synced: ${pack.stripePriceId}).`);
+      continue;
+    }
+
+    const product = await stripe.products.create({
+      name: `Kloud Koach — ${pack.name}`,
+      metadata: { creditPackId: pack.id },
+    });
+
+    const price = await stripe.prices.create({
+      product: product.id,
+      unit_amount: pack.priceCents,
+      currency: "usd",
+      // No `recurring` - credit packs are one-time purchases, checked out
+      // in "payment" mode (see create-credit-checkout-session).
+    });
+
+    await prisma.creditPack.update({ where: { id: pack.id }, data: { stripePriceId: price.id } });
+    console.log(`Synced "${pack.name}" -> ${price.id}`);
   }
 }
 

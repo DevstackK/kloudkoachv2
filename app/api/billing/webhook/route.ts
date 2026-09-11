@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { requireStripe } from "@/lib/stripe";
+import { creditsToUnits, grantCreditsFromPurchase } from "@/lib/credits";
 
 export const runtime = "nodejs";
 
@@ -78,6 +79,17 @@ export async function POST(req: NextRequest) {
         if (session.subscription) {
           const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
           await syncSubscriptionFromStripe(subscription);
+        } else if (session.metadata?.type === "credit_pack") {
+          const { userId, creditPackId } = session.metadata;
+          const pack = creditPackId ? await prisma.creditPack.findUnique({ where: { id: creditPackId } }) : null;
+          if (userId && pack) {
+            await grantCreditsFromPurchase({
+              userId,
+              units: creditsToUnits(pack.credits),
+              stripeCheckoutSessionId: session.id,
+              stripePaymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null,
+            });
+          }
         }
         break;
       }

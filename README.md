@@ -1,7 +1,7 @@
 # Kloud Koach
 
 AI-powered interview coaching — resume parsing, exam prep, mock interview practice, and a live
-interview co-pilot (web + Chrome extension + phone companion), built on Next.js and Claude.
+interview co-pilot (web + phone companion), built on Next.js and Claude.
 
 ## Stack
 
@@ -11,8 +11,6 @@ interview co-pilot (web + Chrome extension + phone companion), built on Next.js 
 - **Anthropic Claude** — resume parsing, exam generation, live coaching answers, session scoring
 - **Deepgram** — live speech-to-text for the mic/tab-audio coaching pipeline
 - **Stripe** — subscription billing
-- **Chrome extension** (`extension/`, MV3) — live co-pilot via `chrome.tabCapture` on any
-  tab-based meeting platform (Zoom, Meet, Teams, DingTalk web)
 - **QR phone companion** (`app/companion/[token]`) — WhatsApp-Web-style pairing so suggested
   answers can show on your phone instead of your shared screen
 
@@ -43,7 +41,7 @@ interview co-pilot (web + Chrome extension + phone companion), built on Next.js 
    npm run db:seed
    ```
 
-5. **If you've set `STRIPE_SECRET_KEY`,** sync your Plan rows to real Stripe Products/Prices:
+5. **If you've set `STRIPE_SECRET_KEY`,** sync your Plan and CreditPack rows to real Stripe Products/Prices:
    ```
    npm run stripe:sync
    ```
@@ -62,7 +60,7 @@ See `.env.example` for the full list. Key ones:
 | `DATABASE_URL` | Everything |
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | Auth |
 | `ANTHROPIC_API_KEY` | Resume parsing, exam prep, live coaching, session scoring |
-| `DEEPGRAM_API_KEY` / `DEEPGRAM_PROJECT_ID` | Live speech-to-text (mock interview + extension) |
+| `DEEPGRAM_API_KEY` / `DEEPGRAM_PROJECT_ID` | Live speech-to-text (mock interview) |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Billing |
 | `NEXT_PUBLIC_APP_URL` | Stripe redirect URLs, companion QR links |
 
@@ -78,19 +76,6 @@ needed). Set the environment variables above in the Vercel project settings, the
   machine with `DATABASE_URL` pointed at prod), then `npm run stripe:sync`
 
 `Dockerfile` is only needed if you want to self-host somewhere other than Vercel.
-
-## The Chrome extension
-
-`extension/` is a separate, unbundled Manifest V3 extension (no build step — load it unpacked via
-`chrome://extensions` → Developer mode → Load unpacked → select the `extension/` folder). Before
-using it against a non-local deployment, update `DEFAULT_API_BASE_URL` in `extension/config.js`.
-
-Chrome and Edge both work unmodified (Edge uses the same Chromium extension platform). Safari does
-not support the `chrome.tabCapture` API this extension depends on, so it isn't supported yet — a
-Safari version would need a different capture strategy.
-
-To connect the extension to your account: open the extension popup → "Get a pairing code" → this
-opens `/dashboard/extension` in the web app → generate a code → paste it back into the popup.
 
 ## Architecture notes
 

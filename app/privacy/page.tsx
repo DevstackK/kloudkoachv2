@@ -7,7 +7,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import SecurityIcon from "@mui/icons-material/Security";
 import MicIcon from "@mui/icons-material/Mic";
 import StorageIcon from "@mui/icons-material/Storage";
-import ExtensionIcon from "@mui/icons-material/Extension";
 import ShareIcon from "@mui/icons-material/Share";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -39,7 +38,7 @@ export default function PrivacyPage() {
               Privacy Policy
             </Typography>
             <Typography variant="subtitle1" color="text.secondary">
-              Kloud Koach – Web App &amp; Chrome Extension
+              Kloud Koach – Web App
             </Typography>
             <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
               Last Updated: {new Date().toLocaleDateString()}
@@ -71,11 +70,11 @@ export default function PrivacyPage() {
 
           <Box mb={4}>
             <Typography variant="h6" fontWeight="bold" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <MicIcon color="primary" /> 2. Audio &amp; the Chrome Extension
+              <MicIcon color="primary" /> 2. Audio &amp; Live Sessions
             </Typography>
             <Typography variant="body2" color="text.secondary" paragraph>
-              The Kloud Koach Chrome extension captures the audio of the meeting tab you explicitly start a session
-              on (e.g. a Zoom/Meet/Teams web call), only while a session is actively running.
+              Kloud Koach captures the audio of the tab (e.g. a Zoom/Meet/Teams web call) or microphone you
+              explicitly start a session on, only while a session is actively running.
             </Typography>
             <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
               <strong>We do not record or store raw audio.</strong> Captured audio is streamed directly to our
@@ -88,8 +87,8 @@ export default function PrivacyPage() {
               metadata (job role, timing, rating) as your session history - never the raw audio.
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Audio capture stops immediately when you click &quot;End Session,&quot; close the side panel, or use
-              Chrome&apos;s own &quot;Stop sharing&quot; control.
+              Audio capture stops immediately when you click &quot;End Session&quot; or use your browser&apos;s own
+              &quot;Stop sharing&quot; control.
             </Typography>
           </Box>
 
@@ -124,36 +123,11 @@ export default function PrivacyPage() {
 
           <Box mb={4}>
             <Typography variant="h6" fontWeight="bold" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <ExtensionIcon color="primary" /> 4. Chrome Extension Permissions
-            </Typography>
-            <List dense>
-              {[
-                { p: "tabCapture", d: "captures audio from the meeting tab you start a session on." },
-                { p: "sidePanel", d: "displays the live coaching UI alongside your meeting tab." },
-                { p: "storage", d: "stores your device pairing token and server URL locally in Chrome, never on our servers in plain form." },
-                { p: "offscreen", d: "required by Chrome to process audio outside the visible extension UI." },
-                { p: "activeTab / host permissions", d: "lets the extension talk to the Kloud Koach API for the tab you're actively using." },
-              ].map(({ p, d }) => (
-                <ListItem key={p}>
-                  <ListItemIcon>
-                    <CheckCircleIcon color="primary" fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText primary={<><strong>{p}</strong> - {d}</>} />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-
-          <Divider sx={{ my: 3 }} />
-
-          <Box mb={4}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <DeleteIcon color="primary" /> 5. Data Retention &amp; Deletion
+              <DeleteIcon color="primary" /> 4. Data Retention &amp; Deletion
             </Typography>
             <Typography variant="body2" color="text.secondary" paragraph>
-              We retain session history and account data for as long as your account is active. You can disconnect
-              the Chrome extension at any time from your dashboard, and can request full account and data deletion
-              by contacting us.
+              We retain session history and account data for as long as your account is active. You can request
+              full account and data deletion by contacting us.
             </Typography>
           </Box>
 
@@ -161,7 +135,7 @@ export default function PrivacyPage() {
 
           <Box mb={4}>
             <Typography variant="h6" fontWeight="bold" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <SecurityIcon color="primary" /> 6. Security
+              <SecurityIcon color="primary" /> 5. Security
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Passwords are hashed (bcrypt), sessions use httpOnly secure cookies, and all traffic is encrypted in

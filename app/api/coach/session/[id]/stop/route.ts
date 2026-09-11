@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/session";
 import { generateStructured } from "@/lib/anthropic";
 import { withCors, corsPreflight } from "@/lib/cors";
+import { AI_MINUTE_SESSION_TYPES, getAIMinutesBreakdown } from "@/lib/planLimits";
+import { settleSessionCredits } from "@/lib/credits";
 
 export async function OPTIONS(req: NextRequest) {
   return corsPreflight(req);
@@ -50,6 +52,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const endedAt = new Date();
   const durationMinutes = Math.max(1, Math.round((endedAt.getTime() - session.startedAt.getTime()) / 60000));
+
+  // Captured before this session's own duration is recorded below, so it
+  // reflects the plan balance this session drew against - see lib/credits.ts.
+  const isAIMinutesSession = (AI_MINUTE_SESSION_TYPES as readonly string[]).includes(session.type);
+  const breakdown = isAIMinutesSession ? await getAIMinutesBreakdown(userId) : null;
 
   let averageScore: number | null = null;
 
@@ -119,6 +126,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     where: { id },
     data: { status: "completed", endedAt, durationMinutes, averageScore },
   });
+
+  if (breakdown) {
+    await settleSessionCredits(userId, id, durationMinutes, breakdown.planRemaining);
+  }
 
   return withCors(req, NextResponse.json({ success: true }));
 }

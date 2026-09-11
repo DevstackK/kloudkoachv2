@@ -38,6 +38,12 @@ enum CoachingSessionStatus {
   abandoned
 }
 
+enum CreditTransactionReason {
+  purchase
+  session_usage
+  manual_adjustment
+}
+
 model User {
   id              String    @id @default(cuid())
   email           String    @unique
@@ -58,11 +64,16 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  subscriptions     Subscription[]
-  resumes           Resume[]
-  courseMaterial    CourseMaterial?
-  coachingSessions  CoachingSession[]
-  extensionDevices  ExtensionDevice[]
+  // 1 unit = 0.5 credit = 30 minutes of AI coaching. Stored in half-credit
+  // units (not a Decimal credits column) so purchase/spend math is plain
+  // integer arithmetic - see lib/credits.ts.
+  creditBalanceUnits Int @default(0)
+
+  subscriptions      Subscription[]
+  resumes            Resume[]
+  courseMaterial     CourseMaterial?
+  coachingSessions   CoachingSession[]
+  creditTransactions CreditTransaction[]
 }
 
 model Plan {
@@ -110,6 +121,38 @@ model Subscription {
   user          User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan          Plan  @relation("PlanSubscriptions", fields: [planId], references: [id])
   scheduledPlan Plan? @relation("ScheduledPlanSubscriptions", fields: [scheduledPlanId], references: [id])
+
+  @@index([userId])
+}
+
+// One-time, non-expiring AI-minute top-ups - the pay-as-you-go alternative
+// to a monthly Plan. Sold in whole credits (1 credit = 60 min) but spent in
+// lib/credits.ts's 30-min units so partial sessions still bill fairly.
+model CreditPack {
+  id            String   @id @default(cuid())
+  name          String
+  credits       Int // whole credits sold, e.g. 3 / 8 / 15 (1 credit = 60 min)
+  priceCents    Int
+  stripePriceId String?
+  priority      Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+}
+
+// Ledger of every credit grant/spend - lets a balance be reconstructed and
+// audited rather than trusting User.creditBalanceUnits alone.
+model CreditTransaction {
+  id                      String                   @id @default(cuid())
+  userId                  String
+  units                   Int // signed; 1 unit = 0.5 credit. + on purchase, - on session usage.
+  reason                  CreditTransactionReason
+  coachingSessionId       String?
+  // Unique so a redelivered Stripe webhook event can't double-grant credits.
+  stripeCheckoutSessionId String?                  @unique
+  stripePaymentIntentId   String?
+  createdAt               DateTime                 @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -178,15 +221,3 @@ model InteractionRecord {
   @@index([sessionId])
 }
 
-model ExtensionDevice {
-  id           String   @id @default(cuid())
-  userId       String
-  deviceToken  String   @unique
-  label        String?
-  lastSeenAt   DateTime @default(now())
-  createdAt    DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}

@@ -1,0 +1,20 @@
+{
+  "name": "kloudkoach-agent-worker",
+  "private": true,
+  "version": "0.1.0",
+  "description": "v3 scaffold: long-running LiveKit Agents worker. Runs as its own process (container/service), separate from the Next.js app, because it must stay connected to LiveKit continuously - it cannot run inside a serverless request/response function.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/worker.ts dev",
+    "start": "tsx src/worker.ts start"
+  },
+  "dependencies": {
+    "@livekit/agents": "^1.7.1",
+    "@livekit/agents-plugin-deepgram": "^1.7.1",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

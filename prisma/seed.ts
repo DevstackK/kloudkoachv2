@@ -70,6 +70,22 @@ const plans: SeedPlan[] = [
   },
 ];
 
+type SeedCreditPack = {
+  name: string;
+  credits: number;
+  priceCents: number;
+  priority: number;
+};
+
+// 1 credit = 60 min of AI coaching, spent in 30-min blocks - see
+// lib/credits.ts. Non-recurring, non-expiring top-up for the AI_MINUTES
+// pool once a user's plan minutes for the period run out.
+const creditPacks: SeedCreditPack[] = [
+  { name: "Basic Pack", credits: 3, priceCents: 2900, priority: 0 },
+  { name: "Plus Pack", credits: 8, priceCents: 5900, priority: 1 },
+  { name: "Advanced Pack", credits: 15, priceCents: 8900, priority: 2 },
+];
+
 async function main() {
   const currentNames = new Set(plans.map((p) => p.name));
 
@@ -107,6 +123,31 @@ async function main() {
   });
   if (retired.count > 0) {
     console.log(`Deactivated ${retired.count} retired plan(s)`);
+  }
+
+  const currentPackNames = new Set(creditPacks.map((p) => p.name));
+
+  for (const pack of creditPacks) {
+    const existing = await prisma.creditPack.findFirst({ where: { name: pack.name } });
+    if (existing) {
+      await prisma.creditPack.update({
+        where: { id: existing.id },
+        data: { credits: pack.credits, priceCents: pack.priceCents, priority: pack.priority, isActive: true },
+      });
+    } else {
+      await prisma.creditPack.create({
+        data: { name: pack.name, credits: pack.credits, priceCents: pack.priceCents, priority: pack.priority },
+      });
+    }
+    console.log(`Seeded credit pack: ${pack.name}`);
+  }
+
+  const retiredPacks = await prisma.creditPack.updateMany({
+    where: { name: { notIn: [...currentPackNames] }, isActive: true },
+    data: { isActive: false },
+  });
+  if (retiredPacks.count > 0) {
+    console.log(`Deactivated ${retiredPacks.count} retired credit pack(s)`);
   }
 }
 

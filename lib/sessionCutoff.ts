@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { checkFeatureLimit } from "@/lib/planLimits";
+import { getAIMinutesBreakdown } from "@/lib/planLimits";
+import { settleSessionCredits } from "@/lib/credits";
 
 // Applies to every session type that draws from the AI_MINUTES pool (see
 // lib/planLimits.ts) - independent of plan, so one sitting can't monopolize
@@ -31,23 +32,24 @@ export async function enforceSessionCutoff(session: CutoffSession): Promise<Sess
   const elapsedMinutes = (Date.now() - session.startedAt.getTime()) / 60_000;
   const hitHardCap = elapsedMinutes >= HARD_SESSION_CAP_MINUTES;
 
-  let hitBalance = false;
-  if (!hitHardCap) {
-    const { remaining } = await checkFeatureLimit(session.userId, "AI_MINUTES");
-    hitBalance = remaining !== -1 && remaining - elapsedMinutes <= 0;
-  }
+  const breakdown = await getAIMinutesBreakdown(session.userId);
+  const hitBalance = !hitHardCap && breakdown.totalRemaining !== -1 && breakdown.totalRemaining - elapsedMinutes <= 0;
 
   if (!hitHardCap && !hitBalance) return { cutoff: false, message: null };
 
+  const durationMinutes = Math.max(1, Math.round(elapsedMinutes));
+
   await prisma.coachingSession.update({
     where: { id: session.id },
-    data: { status: "completed", endedAt: new Date(), durationMinutes: Math.max(1, Math.round(elapsedMinutes)) },
+    data: { status: "completed", endedAt: new Date(), durationMinutes },
   });
+
+  await settleSessionCredits(session.userId, session.id, durationMinutes, breakdown.planRemaining);
 
   return {
     cutoff: true,
     message: hitBalance
-      ? "You've used up your plan's AI coaching minutes for this month. Upgrade to continue."
+      ? "You've used up your plan's AI coaching minutes and credit balance. Buy credits or upgrade to continue."
       : `This session reached its ${HARD_SESSION_CAP_MINUTES}-minute limit and has ended.`,
   };
 }

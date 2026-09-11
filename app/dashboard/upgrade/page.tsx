@@ -30,9 +30,19 @@ type SubscriptionInfo = {
   hasStripeSubscription: boolean;
 } | null;
 
+type CreditPack = {
+  creditPackId: string;
+  name: string;
+  credits: number;
+  price: number;
+  pricePerCredit: number;
+};
+
 export default function UpgradePlanPage() {
   const [plans, setPlans] = React.useState<Plan[]>([]);
   const [subscription, setSubscription] = React.useState<SubscriptionInfo>(null);
+  const [creditPacks, setCreditPacks] = React.useState<CreditPack[]>([]);
+  const [creditBalance, setCreditBalance] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
   const [error, setError] = React.useState("");
@@ -41,14 +51,20 @@ export default function UpgradePlanPage() {
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [plansRes, subRes] = await Promise.all([
+      const [plansRes, subRes, creditPacksRes, creditsRes] = await Promise.all([
         fetch("/api/plans"),
         fetch("/api/billing/subscription", { credentials: "include" }),
+        fetch("/api/credit-packs"),
+        fetch("/api/billing/credits", { credentials: "include" }),
       ]);
       const plansJson = await plansRes.json();
       const subJson = await subRes.json();
+      const creditPacksJson = await creditPacksRes.json();
+      const creditsJson = await creditsRes.json();
       if (plansJson.success) setPlans(plansJson.data);
       if (subJson.success) setSubscription(subJson.data);
+      if (creditPacksJson.success) setCreditPacks(creditPacksJson.data);
+      if (creditsJson.success) setCreditBalance(creditsJson.data.credits);
     } finally {
       setLoading(false);
     }
@@ -57,6 +73,32 @@ export default function UpgradePlanPage() {
   React.useEffect(() => {
     load();
   }, [load]);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("credits") === "success") setMessage("Credits added to your balance.");
+    else if (params.get("credits") === "cancelled") setError("Credit purchase was cancelled.");
+  }, []);
+
+  const handleBuyCredits = async (pack: CreditPack) => {
+    setError("");
+    setMessage("");
+    setActionLoading(pack.creditPackId);
+    try {
+      const res = await fetch("/api/billing/create-credit-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ creditPackId: pack.creditPackId }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.message || "Could not start checkout.");
+      if (json.data?.url) window.location.href = json.data.url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start checkout.");
+      setActionLoading(null);
+    }
+  };
 
   const handleSelectPlan = async (plan: Plan) => {
     setError("");
@@ -238,6 +280,51 @@ export default function UpgradePlanPage() {
           );
         })}
       </Grid>
+
+      {creditPacks.length > 0 && (
+        <Box sx={{ mt: 8 }}>
+          <Typography variant="h4" fontWeight="bold" align="center" gutterBottom>
+            Buy AI Coaching Credits
+          </Typography>
+          <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 1 }}>
+            1 credit = 1 hour of AI coaching. Credits never expire and top up your plan once its monthly minutes run out.
+          </Typography>
+          {creditBalance !== null && (
+            <Typography variant="body2" align="center" sx={{ mb: 4 }}>
+              Current balance: <strong>{creditBalance}</strong> credit{creditBalance === 1 ? "" : "s"}
+            </Typography>
+          )}
+
+          <Grid container spacing={4} justifyContent="center" alignItems="stretch">
+            {creditPacks.map((pack) => (
+              <Grid item xs={12} sm={6} md={3} key={pack.creditPackId}>
+                <Paper sx={{ p: 4, borderRadius: "20px", height: "100%", display: "flex", flexDirection: "column", border: "1px solid", borderColor: "divider" }}>
+                  <Typography variant="h5" fontWeight="bold" gutterBottom>
+                    {pack.name}
+                  </Typography>
+                  <Typography variant="h3" fontWeight="bold" my={2}>
+                    ${pack.price}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    {pack.credits} credit{pack.credits === 1 ? "" : "s"} (${pack.pricePerCredit.toFixed(2)}/credit)
+                  </Typography>
+                  <Box sx={{ flexGrow: 1 }} />
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    size="large"
+                    disabled={actionLoading === pack.creditPackId}
+                    onClick={() => handleBuyCredits(pack)}
+                    sx={{ mt: 2, py: 1.5, borderRadius: "12px" }}
+                  >
+                    {actionLoading === pack.creditPackId ? <CircularProgress size={20} color="inherit" /> : "Buy Credits"}
+                  </Button>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+      )}
     </Container>
   );
 }

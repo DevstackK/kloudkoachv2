@@ -160,15 +160,6 @@ export default function LiveInterviewPage() {
               Share a Tab &amp; Start
             </Button>
           </Box>
-
-          <Typography variant="caption" color="text.secondary" align="center" display="block" sx={{ mt: 3 }}>
-            Interviewing over a native desktop app (Zoom/Teams desktop) instead of a browser tab? Tab sharing can&apos;t
-            reach that audio — use the{" "}
-            <Link href="/dashboard/extension" style={{ color: "inherit", fontWeight: 600 }}>
-              Chrome extension
-            </Link>{" "}
-            instead.
-          </Typography>
         </Paper>
       </Container>
     );

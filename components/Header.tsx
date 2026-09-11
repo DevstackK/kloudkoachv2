@@ -27,7 +27,6 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import HistoryIcon from "@mui/icons-material/History";
 import PersonIcon from "@mui/icons-material/Person";
 import StarIcon from "@mui/icons-material/Star";
-import ExtensionIcon from "@mui/icons-material/Extension";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import GroupsIcon from "@mui/icons-material/Groups";
 import { useAuth } from "@/lib/AuthProvider";
@@ -46,7 +45,6 @@ const userDropdownLinks = [
   { title: "Meeting Helper", path: "/dashboard/meeting-helper", icon: <GroupsIcon fontSize="small" /> },
   { title: "Upgrade Plan", path: "/dashboard/upgrade", icon: <StarIcon fontSize="small" /> },
   { title: "History", path: "/dashboard/history", icon: <HistoryIcon fontSize="small" /> },
-  { title: "Connect Extension", path: "/dashboard/extension", icon: <ExtensionIcon fontSize="small" /> },
   { title: "How to Use / Tutorial", path: "/dashboard/help", icon: <HelpOutlineIcon fontSize="small" /> },
   { title: "User Profile", path: "/dashboard/profile", icon: <PersonIcon fontSize="small" /> },
 ];
