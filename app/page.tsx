@@ -12,10 +12,6 @@ import {
   AppBar,
   Toolbar,
   useTheme,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
   CircularProgress,
   Alert,
 } from "@mui/material";
@@ -23,29 +19,8 @@ import SmartToyIcon from "@mui/icons-material/SmartToy";
 import MicIcon from "@mui/icons-material/Mic";
 import DescriptionIcon from "@mui/icons-material/Description";
 import SchoolIcon from "@mui/icons-material/School";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import styles from "./landing.module.css";
 import { useAuth } from "@/lib/AuthProvider";
-
-type PlanFeature = {
-  displayName: string;
-  isActive: boolean;
-  limitValue: number;
-  unit: string;
-  featureType: "TimeBased" | "CountBased" | "TokenBased";
-};
-
-type Plan = {
-  subscriptionPlanId: string;
-  name: string;
-  price: number;
-  billingCycle: string;
-  description: string;
-  priority: number;
-  isPopular: boolean;
-  isActive: boolean;
-  features: PlanFeature[];
-};
 
 type CreditPack = {
   creditPackId: string;
@@ -64,7 +39,6 @@ export default function LandingPage() {
   const theme = useTheme();
   const { user, loading: authLoading } = useAuth();
 
-  const [plans, setPlans] = React.useState<Plan[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [creditPacks, setCreditPacks] = React.useState<CreditPack[]>([]);
@@ -78,35 +52,21 @@ export default function LandingPage() {
   React.useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/plans");
+        const res = await fetch("/api/credit-packs");
         const json = await res.json();
         if (json.success) {
-          setPlans(json.data);
+          setCreditPacks(json.data);
         } else {
-          setError("Failed to load plans.");
+          setError("Failed to load pricing.");
         }
       } catch (err) {
-        console.error("Error fetching plans:", err);
+        console.error("Error fetching credit packs:", err);
         setError("Could not connect to server.");
       } finally {
         setLoading(false);
       }
     })();
-
-    (async () => {
-      try {
-        const res = await fetch("/api/credit-packs");
-        const json = await res.json();
-        if (json.success) setCreditPacks(json.data);
-      } catch (err) {
-        console.error("Error fetching credit packs:", err);
-      }
-    })();
   }, []);
-
-  const handlePlanSelect = (plan: Plan) => {
-    router.push(`/register?plan=${plan.subscriptionPlanId}`);
-  };
 
   const handleBuyCredits = () => {
     router.push("/register");
@@ -314,8 +274,11 @@ export default function LandingPage() {
 
       <Box id="plans" sx={{ bgcolor: theme.palette.background.default, py: 10 }}>
         <Container maxWidth="lg">
-          <Typography variant="h3" align="center" gutterBottom sx={{ fontWeight: 700, mb: 6 }}>
-            Choose Your Plan
+          <Typography variant="h3" align="center" gutterBottom sx={{ fontWeight: 700, mb: 1 }}>
+            Buy AI Coaching Credits
+          </Typography>
+          <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 6, maxWidth: 600, mx: "auto" }}>
+            1 credit = 1 hour of AI coaching. Credits never expire.
           </Typography>
 
           {loading && (
@@ -332,123 +295,38 @@ export default function LandingPage() {
 
           {!loading && !error && (
             <Grid container spacing={4} justifyContent="center" alignItems="stretch">
-              {plans
-                .filter((plan) => plan.isActive)
-                .map((plan) => {
-                  const isFree = plan.price === 0;
-                  return (
-                    <Grid item xs={12} sm={6} md={3} key={plan.subscriptionPlanId}>
-                      <Paper
-                        className={styles.planCard}
-                        sx={{
-                          p: 4,
-                          borderRadius: "20px",
-                          height: "100%",
-                          display: "flex",
-                          flexDirection: "column",
-                          position: "relative",
-                          border: plan.isPopular ? "2px solid" : "1px solid",
-                          borderColor: plan.isPopular ? "secondary.main" : "divider",
-                          bgcolor: "background.paper",
-                        }}
-                      >
-                        {plan.isPopular && (
-                          <Box sx={{ position: "absolute", top: 15, right: 15, bgcolor: "secondary.main", color: "white", px: 1.5, py: 0.5, borderRadius: "12px", fontSize: "0.8rem", fontWeight: "bold" }}>
-                            Popular
-                          </Box>
-                        )}
+              {creditPacks.map((pack) => (
+                <Grid item xs={12} sm={6} md={3} key={pack.creditPackId}>
+                  <Paper
+                    className={styles.planCard}
+                    sx={{ p: 4, borderRadius: "20px", height: "100%", display: "flex", flexDirection: "column", border: "1px solid", borderColor: "divider", bgcolor: "background.paper" }}
+                  >
+                    <Typography variant="h5" fontWeight="bold" gutterBottom>
+                      {pack.name}
+                    </Typography>
 
-                        <Typography variant="h5" fontWeight="bold" gutterBottom>
-                          {plan.name}
-                        </Typography>
+                    <Typography variant="h3" fontWeight="bold" my={2}>
+                      ${pack.price}
+                    </Typography>
 
-                        <Typography variant="h3" fontWeight="bold" my={2}>
-                          ${plan.price}
-                          <Typography variant="body1" component="span" color="text.secondary">
-                            /{plan.billingCycle === "monthly" ? "mo" : "yr"}
-                          </Typography>
-                        </Typography>
+                    <Typography variant="body2" color="text.secondary" gutterBottom sx={{ flexGrow: 1 }}>
+                      {pack.credits} credit{pack.credits === 1 ? "" : "s"} (${pack.pricePerCredit.toFixed(2)}/credit)
+                    </Typography>
 
-                        <Typography variant="body2" color="text.secondary" gutterBottom>
-                          {plan.description}
-                        </Typography>
-
-                        <List sx={{ flexGrow: 1, py: 2 }}>
-                          {plan.features
-                            .filter((feature) => feature.isActive && feature.limitValue !== 0)
-                            .map((feature, i) => (
-                              <ListItem key={i} disableGutters>
-                                <ListItemIcon sx={{ minWidth: 30 }}>
-                                  <CheckCircleIcon color={plan.isPopular ? "secondary" : "primary"} fontSize="small" />
-                                </ListItemIcon>
-                                <ListItemText
-                                  primary={feature.displayName}
-                                  secondary={feature.limitValue === -1 ? "Unlimited" : `${feature.limitValue} ${feature.unit}`}
-                                />
-                              </ListItem>
-                            ))}
-                        </List>
-
-                        <Button
-                          variant={plan.isPopular ? "contained" : "outlined"}
-                          color={plan.isPopular ? "secondary" : "primary"}
-                          fullWidth
-                          size="large"
-                          sx={{ mt: "auto", py: 1.5, borderRadius: "12px" }}
-                          onClick={() => handlePlanSelect(plan)}
-                        >
-                          {isFree ? "Get Started Free" : "Select Plan"}
-                        </Button>
-                      </Paper>
-                    </Grid>
-                  );
-                })}
-            </Grid>
-          )}
-
-          {!loading && !error && creditPacks.length > 0 && (
-            <Box sx={{ mt: 10 }}>
-              <Typography variant="h4" align="center" gutterBottom sx={{ fontWeight: 700 }}>
-                Buy AI Coaching Credits
-              </Typography>
-              <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 6, maxWidth: 600, mx: "auto" }}>
-                1 credit = 1 hour of AI coaching. Credits never expire and top up your plan once its monthly minutes run out.
-              </Typography>
-
-              <Grid container spacing={4} justifyContent="center" alignItems="stretch">
-                {creditPacks.map((pack) => (
-                  <Grid item xs={12} sm={6} md={3} key={pack.creditPackId}>
-                    <Paper
-                      className={styles.planCard}
-                      sx={{ p: 4, borderRadius: "20px", height: "100%", display: "flex", flexDirection: "column", border: "1px solid", borderColor: "divider", bgcolor: "background.paper" }}
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      fullWidth
+                      size="large"
+                      sx={{ mt: "auto", py: 1.5, borderRadius: "12px" }}
+                      onClick={handleBuyCredits}
                     >
-                      <Typography variant="h5" fontWeight="bold" gutterBottom>
-                        {pack.name}
-                      </Typography>
-
-                      <Typography variant="h3" fontWeight="bold" my={2}>
-                        ${pack.price}
-                      </Typography>
-
-                      <Typography variant="body2" color="text.secondary" gutterBottom sx={{ flexGrow: 1 }}>
-                        {pack.credits} credit{pack.credits === 1 ? "" : "s"} (${pack.pricePerCredit.toFixed(2)}/credit)
-                      </Typography>
-
-                      <Button
-                        variant="outlined"
-                        color="primary"
-                        fullWidth
-                        size="large"
-                        sx={{ mt: "auto", py: 1.5, borderRadius: "12px" }}
-                        onClick={handleBuyCredits}
-                      >
-                        Buy Credits
-                      </Button>
-                    </Paper>
-                  </Grid>
-                ))}
-              </Grid>
-            </Box>
+                      Buy Credits
+                    </Button>
+                  </Paper>
+                </Grid>
+              ))}
+            </Grid>
           )}
         </Container>
       </Box>
